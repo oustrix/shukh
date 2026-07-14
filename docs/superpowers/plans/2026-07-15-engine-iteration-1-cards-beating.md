@@ -6,7 +6,7 @@
 
 **Architecture:** A single dependency-free Go package `engine` under module `github.com/oustrix/shukh`. All values are absolute face-values so beating logic is deck-independent; deck-dependent facts (lowest rank, special cards) come from a `RuleSet`. No I/O, no networking, no randomness inside the package (determinism lives at higher layers — decision D-7).
 
-**Tech Stack:** Go 1.26, standard library only, table-driven `testing` tests.
+**Tech Stack:** Go 1.26. Engine (non-test) code is standard-library-only. Tests use `github.com/stretchr/testify/require`, table-driven where there are more than two cases.
 
 **Source of truth:** Rules in [`docs/shukh-rules.md`](../../shukh-rules.md) (refs `R-§.n`, `I-n`). Spec: [`docs/superpowers/specs/2026-07-15-engine-core-design.md`](../specs/2026-07-15-engine-core-design.md). Architecture decisions: [`docs/architecture.md`](../../architecture.md).
 
@@ -14,10 +14,10 @@
 
 - Module path: `github.com/oustrix/shukh`. Go version floor: `1.26`.
 - All engine code lives in package `engine` (directory `engine/`).
-- **Layer 0 purity:** the `engine` package MUST NOT import any I/O, networking, `time`, or `math/rand` package. Standard library non-I/O helpers (`fmt`, `errors`, `sort`) are allowed.
+- **Layer 0 purity (non-test code):** the `engine` package's non-test files MUST NOT import any I/O, networking, `time`, or `math/rand` package. Standard library non-I/O helpers (`fmt`, `errors`, `sort`) are allowed. This purity rule applies to production code only — `_test.go` files may import the test dependency below.
+- **Test assertions use `github.com/stretchr/testify/require`.** The test code blocks in each task show the required behavior/cases; express the assertions with `require` (`require.Equal(t, want, got)`, `require.True`, `require.False`, `require.Error`, `require.NoError`), keeping the same table-driven structure and the same cases. Conversion is mechanical, e.g. `if got != want { t.Errorf(...) }` → `require.Equal(t, want, got)` and `if err == nil { t.Errorf(...) }` → `require.Error(t, err)`. testify (v1.11.1) and its deps are already in the local module cache and were wired into `go.mod`/`go.sum` in Task 1; later tasks just import `github.com/stretchr/testify/require`. NB: the corporate `GOPROXY` does not serve public modules — if a dependency ever needs fetching, use the public proxy inline for this repo only (`GOPROXY=https://proxy.golang.org,direct go get …`), never change the global default, or stay offline with `GOPROXY=off`.
 - `Rank` is an absolute face value 2..14 (Jack=11, Queen=12, King=13, Ace=14). Deck size never changes rank values — only which ranks exist (R-2.2, R-2.3).
-- Every exported symbol carries a doc comment citing the rule number(s) it implements.
-- Tests are table-driven where more than two cases exist.
+- Every exported symbol carries a doc comment. Cite the rule number(s) it implements where one applies; pure formatting helpers (`String()` methods) get a plain descriptive comment (no rule cite needed).
 - Commit after every task with a passing `go test ./...`.
 
 ---
