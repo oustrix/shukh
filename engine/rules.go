@@ -47,3 +47,26 @@ func (rs RuleSet) Successor(r Rank) Rank {
 	}
 	return r + 1
 }
+
+// Special cards. 6(2)♥ and 7(3)♥ depend on the deck (lowest rank differs),
+// so they hang off RuleSet; Дама ♥ and 9♦ are absolute face values.
+
+// IsLowestHeart reports whether c is 6(2)♥ — the «западло» card that can only be
+// shed by opening or the tuck-under move (R-3.6).
+func (rs RuleSet) IsLowestHeart(c Card) bool {
+	return c.Suit == Hearts && c.Rank == rs.LowestRank()
+}
+
+// IsSecondLowestHeart reports whether c is 7(3)♥ — the card 6(2)♥ tucks under
+// in the западло move (R-3.6.2).
+func (rs RuleSet) IsSecondLowestHeart(c Card) bool {
+	return c.Suit == Hearts && c.Rank == rs.LowestRank()+1
+}
+
+// IsQueenHearts reports whether c is Дама ♥ — the highest card of the game
+// (R-3.7). Deck-independent.
+func IsQueenHearts(c Card) bool { return c.Suit == Hearts && c.Rank == Queen }
+
+// IsStarter reports whether c is 9♦, whose holder opens the very first con of a
+// game (R-5.1). Deck-independent (9 exists in both deck sizes).
+func IsStarter(c Card) bool { return c.Suit == Diamonds && c.Rank == 9 }

@@ -58,3 +58,24 @@ func TestSuccessor(t *testing.T) {
 		require.Equal(t, c.want, got)
 	}
 }
+
+func TestSpecialCards(t *testing.T) {
+	rs36 := RuleSet{DeckSize: Deck36}
+	rs52 := RuleSet{DeckSize: Deck52}
+
+	// 6(2)♥ — lowest heart is 6 in a 36 deck, 2 in a 52 deck (R-3.6).
+	require.True(t, rs36.IsLowestHeart(Card{Hearts, 6}), "6♥ must be the lowest heart in a 36 deck")
+	require.False(t, rs36.IsLowestHeart(Card{Hearts, 2}), "2♥ is not the lowest heart in a 36 deck")
+	require.True(t, rs52.IsLowestHeart(Card{Hearts, 2}), "2♥ must be the lowest heart in a 52 deck")
+	require.False(t, rs36.IsLowestHeart(Card{Spades, 6}), "6♠ is not a heart")
+
+	// 7(3)♥ — second lowest heart (R-3.6.2).
+	require.True(t, rs36.IsSecondLowestHeart(Card{Hearts, 7}), "7♥ must be the second-lowest heart in a 36 deck")
+	require.True(t, rs52.IsSecondLowestHeart(Card{Hearts, 3}), "3♥ must be the second-lowest heart in a 52 deck")
+
+	// Дама ♥ and 9♦ are deck-independent (R-3.7, R-5.1).
+	require.True(t, IsQueenHearts(Card{Hearts, Queen}), "Q♥ must be recognized")
+	require.False(t, IsQueenHearts(Card{Spades, Queen}), "Q♠ is not Дама ♥")
+	require.True(t, IsStarter(Card{Diamonds, 9}), "9♦ must be the starter")
+	require.False(t, IsStarter(Card{Hearts, 9}), "9♥ is not the starter")
+}
