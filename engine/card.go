@@ -18,6 +18,7 @@ const (
 // IsTrump reports whether the suit is the trump suit ♦ (R-2.5).
 func (s Suit) IsTrump() bool { return s == Diamonds }
 
+// String renders the suit as its Unicode symbol: ♠ ♥ ♦ ♣ (R-2.4).
 func (s Suit) String() string {
 	switch s {
 	case Spades:
@@ -45,6 +46,7 @@ const (
 	Ace   Rank = 14
 )
 
+// String renders the rank as J/Q/K/A for the face cards, or its decimal value.
 func (r Rank) String() string {
 	switch r {
 	case Jack:
@@ -66,4 +68,5 @@ type Card struct {
 	Rank Rank
 }
 
+// String renders the card as rank followed by suit symbol, e.g. "9♦".
 func (c Card) String() string { return c.Rank.String() + c.Suit.String() }
