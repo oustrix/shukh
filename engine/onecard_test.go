@@ -89,3 +89,23 @@ func TestAskCountRejectedWhenNoObligation(t *testing.T) {
 	_, _, err := Apply(s, AskCount{Target: 0})
 	require.Error(t, err)
 }
+
+func TestAskCountClearsObligation(t *testing.T) {
+	// R-6.2/R-6.3: after AskCount assesses Ш-11, the «одна карта» obligation is
+	// discharged — the same undeclared single card must not be re-punishable by a
+	// second AskCount (payment goes to the Shukh zone, not the hand, so seat 0's
+	// hand size never crosses 1 and reconcileOneCard's edge-trigger never fires).
+	s := middle(map[SeatID][]Card{
+		0: {{Diamonds, 9}},
+		1: {{Clubs, 8}, {Clubs, 9}},
+	}, nil, 0)
+	s.OwesOneCard[0] = true
+
+	ns, _, err := Apply(s, AskCount{Target: 0})
+	require.NoError(t, err)
+	require.False(t, ns.OwesOneCard[0])
+
+	_, _, err = Apply(ns, AskCount{Target: 0})
+	require.Error(t, err)
+	require.NotContains(t, LegalActions(ns, 1), AskCount{Target: 0})
+}

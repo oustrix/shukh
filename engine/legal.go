@@ -54,8 +54,12 @@ func LegalActions(s State, seat SeatID) []Action {
 		}
 	}
 	if s.Endgame.Active && !s.Endgame.Asked {
+		west := Card{Suit: Hearts, Rank: s.Rules.LowestRank()} // 6(2)♥
 		for _, t := range s.Seats {
-			if t != seat && s.Live[t] {
+			// R-9.4.2: only the actual holder is a legal target — otherwise the
+			// holder could pre-emptively ask a non-holder to burn the single global
+			// Asked flag and dodge Ш-12. No info leak in the 2-player endgame.
+			if t != seat && s.Live[t] && slices.Contains(s.Hands[t], west) {
 				social = append(social, AskAboutWest{Target: t})
 			}
 		}

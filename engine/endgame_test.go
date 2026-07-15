@@ -81,22 +81,57 @@ func TestAskAboutWestAssessesSh12(t *testing.T) {
 	require.True(t, ns.Pending.ThenDiscardWest)
 }
 
-func TestAskAboutWestNoShukhWhenAlreadyDiscarded(t *testing.T) {
-	// Asked but seat 0 no longer holds 6(2)♥ (discarded earlier) → no ШУХ, just
-	// closes the безнаказанно window.
+func TestAskAboutWestIllegalWhenTargetLacksWest(t *testing.T) {
+	// R-9.4.2: AskAboutWest is legal only against the actual 6(2)♥ holder. In a
+	// 2-player endgame the card's location is common knowledge (you see your own
+	// hand), so restricting the ask leaks nothing — but it closes a self-shield
+	// exploit: without this, the holder could pre-emptively ask a non-holder,
+	// burn the single global Asked flag, and dodge Ш-12 for free.
 	s := middle(map[SeatID][]Card{
-		0: {{Spades, 7}},
+		0: {{Spades, 7}}, // no 6(2)♥ — not the holder
 		1: {{Clubs, 8}},
 	}, nil, 0)
 	s.Endgame = EndgameState{Active: true}
-	ns, events, err := Apply(s, AskAboutWest{Target: 0})
+	require.NotContains(t, LegalActions(s, 1), AskAboutWest{Target: 0})
+
+	_, _, err := Apply(s, AskAboutWest{Target: 0})
+	require.Error(t, err)
+}
+
+func TestClaimShukhSh12LatchesAsked(t *testing.T) {
+	// R-9.4.3: a заход-caught Ш-12 (via ClaimShukh) must latch Endgame.Asked too,
+	// same as a direct AskAboutWest — otherwise, before the forced DiscardWest, an
+	// opponent could AskAboutWest the offender for a second Ш-12 on the same card.
+	s := middle(map[SeatID][]Card{
+		0: {{Hearts, 6}, {Spades, 7}},
+		1: {{Clubs, 8}, {Clubs, 9}},
+	}, nil, 0)
+	s.Endgame = EndgameState{Active: true}
+
+	ns, _, err := Apply(s, PlayCard{Card{Hearts, 6}}) // Middle 6(2)♥ заход
 	require.NoError(t, err)
-	require.True(t, ns.Endgame.Asked)
-	require.Nil(t, ns.Pending)
-	for _, e := range events {
-		_, isAssessed := e.(ShukhAssessed)
-		require.False(t, isAssessed)
-	}
+	require.NotNil(t, ns.Unsettled)
+	require.Equal(t, Sh12, ns.Unsettled.Code)
+
+	ns2, _, err := Apply(ns, ClaimShukh{Target: 0, Code: Sh12})
+	require.NoError(t, err)
+	require.True(t, ns2.Endgame.Asked)
+
+	// The reversed заход opened a payment gate (seat 1 owes, ≥2 cards). Drive the
+	// payment to completion so the gate closes — otherwise a trailing AskAboutWest
+	// would be rejected by the still-open gate (gatesClosed()==false), which would
+	// NOT isolate the Asked-latch this fix is about.
+	require.NotNil(t, ns2.Pending)
+	ns3, _, err := Apply(ns2, GiveShukhCard{Card: Card{Clubs, 8}}) // seat 1's non-last card
+	require.NoError(t, err)
+	require.Nil(t, ns3.Pending)                                    // gate closed
+	require.True(t, ns3.Endgame.Asked)                             // latch persisted through payment
+	require.Contains(t, ns3.Hands[0], Card{Hearts, 6})            // offender still holds 6(2)♥ (no DiscardWest yet)
+
+	// Now gatesClosed()==true, so this rejection is due to Asked==true alone — the
+	// fix's real guarantee: no second ask-triggered Ш-12 before the forced DiscardWest.
+	_, _, err = Apply(ns3, AskAboutWest{Target: 0})
+	require.Error(t, err)
 }
 
 func TestMiddleSixHeartsZahodCaughtAsSh12(t *testing.T) {

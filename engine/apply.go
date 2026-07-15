@@ -101,6 +101,12 @@ func Apply(s State, a Action) (State, []Event, error) {
 		events = append(events, ActionReverted{Seat: s.Unsettled.Seat})
 		skip := s.Unsettled.Code == Sh2 || s.Unsettled.Code == Sh12
 		thenDiscard := s.Unsettled.Code == Sh12
+		if s.Unsettled.Code == Sh12 {
+			// R-9.4.3: a заход-caught Ш-12 latches Endgame.Asked too (Prev had it
+			// false), closing the window so the offender cannot be asked again for a
+			// second Ш-12 before the forced DiscardWest. Sh2/Sh3 must not touch it.
+			ns.Endgame.Asked = true
+		}
 		ns.assessShukh(s.Unsettled.Seat, s.Unsettled.Code, skip, thenDiscard, &events)
 		before = handSizes(ns.Hands) // reconcile against the restored snapshot, not the post-offense sizes
 	case GiveShukhCard:
@@ -135,6 +141,12 @@ func Apply(s State, a Action) (State, []Event, error) {
 		events = append(events, OneCardDeclared{Seat: act.Seat})
 	case AskCount:
 		ns.assessShukh(act.Target, Sh11, false, false, &events) // R-6.2, no extra effect
+		// R-6.2/R-6.3: the count question discharges the «одна карта» obligation —
+		// otherwise the same undeclared single card could be re-penalized repeatedly.
+		// Payment goes to the Shukh zone, not Target's hand, so Target's hand size
+		// never changes here (now == before == 1) → reconcileOneCard's edge-trigger
+		// does not fire below, and this false sticks.
+		ns.OwesOneCard[act.Target] = false
 	case DiscardWest:
 		west := Card{Suit: Hearts, Rank: ns.Rules.LowestRank()} // 6(2)♥
 		ns.Hands[turn] = removeCard(ns.Hands[turn], west)
@@ -143,11 +155,9 @@ func Apply(s State, a Action) (State, []Event, error) {
 		events = append(events, WestDiscarded{Seat: turn})
 		ns.settleTurn(ns.nextLive(turn), &events)
 	case AskAboutWest:
+		// isLegal now guarantees Target holds 6(2)♥ (R-9.4.2), so this always assesses.
 		ns.Endgame.Asked = true
-		west := Card{Suit: Hearts, Rank: ns.Rules.LowestRank()} // 6(2)♥
-		if slices.Contains(ns.Hands[act.Target], west) {
-			ns.assessShukh(act.Target, Sh12, true, true, &events) // R-9.4.2: skip + discard
-		}
+		ns.assessShukh(act.Target, Sh12, true, true, &events) // skip + discard
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -180,8 +190,12 @@ func isLegal(s State, a Action) bool {
 		return s.gatesClosed() && s.OwesOneCard[act.Target]
 	case AskAboutWest:
 		// Actor-agnostic (P-1), like AskCount: legality is by Target's state alone,
-		// not by who is asking (the asker seat is not modeled).
-		return s.gatesClosed() && s.Endgame.Active && !s.Endgame.Asked && s.Live[act.Target]
+		// not by who is asking (the asker seat is not modeled). Only the actual
+		// 6(2)♥ holder is a legal target (R-9.4.2): otherwise the holder could
+		// pre-emptively ask a non-holder, burn the single global Asked flag, and
+		// dodge Ш-12 — no info leak in the 2-player endgame (you see your own hand).
+		return s.gatesClosed() && s.Endgame.Active && !s.Endgame.Asked && s.Live[act.Target] &&
+			slices.Contains(s.Hands[act.Target], Card{Suit: Hearts, Rank: s.Rules.LowestRank()})
 	default:
 		return slices.Contains(LegalActions(s, s.Turn), a)
 	}
