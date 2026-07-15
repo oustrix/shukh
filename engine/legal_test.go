@@ -18,15 +18,16 @@ func playing(hands map[SeatID][]Card, table []TableCard, turn SeatID) State {
 		live[SeatID(i)] = true
 	}
 	return State{
-		Rules: RuleSet{DeckSize: Deck36},
-		Mode:  Guard,
-		Seats: seats,
-		Phase: Playing,
-		Hands: hands,
-		Table: table,
-		Shukh: map[SeatID][]Card{},
-		Live:  live,
-		Turn:  turn,
+		Rules:         RuleSet{DeckSize: Deck36},
+		Mode:          Guard,
+		Seats:         seats,
+		Phase:         Playing,
+		Hands:         hands,
+		Table:         table,
+		Shukh:         map[SeatID][]Card{},
+		ShukhTakeable: map[SeatID]bool{},
+		Live:          live,
+		Turn:          turn,
 	}
 }
 

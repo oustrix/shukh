@@ -80,9 +80,16 @@ type ShukhPaid struct {
 	Card     Card
 }
 
-func (ShukhAssessed) isEvent()  {}
-func (ActionReverted) isEvent() {}
-func (ShukhPaid) isEvent()      {}
+// ShukhCardsTaken is emitted when a player lifts his Shukh pile into hand (R-8.3).
+type ShukhCardsTaken struct {
+	Seat  SeatID
+	Cards []Card
+}
+
+func (ShukhAssessed) isEvent()   {}
+func (ActionReverted) isEvent()  {}
+func (ShukhPaid) isEvent()       {}
+func (ShukhCardsTaken) isEvent() {}
 
 func (GameStarted) isEvent()     {}
 func (CardPlayed) isEvent()      {}

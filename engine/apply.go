@@ -59,6 +59,9 @@ func Apply(s State, a Action) (State, []Event, error) {
 		ns.Table = ns.Table[1:]
 		ns.Hands[turn] = append(ns.Hands[turn], taken.Card)
 		events = append(events, CardsTaken{Seat: turn, Cards: []Card{taken.Card}})
+		if len(ns.Table) == 0 {
+			ns.markShukhTakeable() // P-4: taking the last card empties the con
+		}
 		// Taking can only shrink the con, so it never closes; but removing the
 		// bottom card may free its (handless) owner to exit (R-9.1).
 		ns.resolveExits([]SeatID{taken.By}, &events)
@@ -72,6 +75,7 @@ func Apply(s State, a Action) (State, []Event, error) {
 		eaten := append([]Card{west}, cardsOf(ns.Table)...) // 6(2)♥ tucked under the con (R-3.6.2)
 		ns.Hands[eater] = append(ns.Hands[eater], eaten...)
 		ns.Table = nil
+		ns.markShukhTakeable() // P-4: the con that held any ШУХ has ended
 		events = append(events,
 			PodkladkaPlayed{Seat: turn, Eater: eater},
 			CardsTaken{Seat: eater, Cards: eaten},
@@ -102,6 +106,15 @@ func Apply(s State, a Action) (State, []Event, error) {
 			ns.applyShukhEffect(p.Offender, p.Skip, p.ThenDiscardWest, &events)
 			ns.Pending = nil
 		}
+	case TakeShukhCards:
+		// The takeable path (R-8.3): lift the pile into hand. The early-take Ш-3
+		// window (§15.4) is added in Task 7 — this case does not yet check
+		// ShukhTakeable before taking.
+		taken := ns.Shukh[act.Seat]
+		ns.Shukh[act.Seat] = nil
+		ns.ShukhTakeable[act.Seat] = false
+		ns.Hands[act.Seat] = append(ns.Hands[act.Seat], taken...)
+		events = append(events, ShukhCardsTaken{Seat: act.Seat, Cards: taken})
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -125,6 +138,8 @@ func isLegal(s State, a Action) bool {
 			return false
 		}
 		return slices.Contains(LegalActions(s, s.Pending.Owed[0]), a)
+	case TakeShukhCards:
+		return slices.Contains(LegalActions(s, act.Seat), a)
 	default:
 		return slices.Contains(LegalActions(s, s.Turn), a)
 	}
@@ -301,6 +316,7 @@ func (s *State) closeCon(closer SeatID, events *[]Event) {
 	s.Discard = append(s.Discard, swept...)
 	s.Table = nil
 	*events = append(*events, ConClosed{By: closer}, ConSwept{Cards: swept})
+	s.markShukhTakeable() // P-4: the con that held any ШУХ has ended
 
 	s.resolveExits(s.seatsFrom(closer), events)
 	if s.Phase == Finished {

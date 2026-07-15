@@ -38,10 +38,17 @@ func LegalActions(s State, seat SeatID) []Action {
 		}
 		return out
 	}
-	if seat != s.Turn {
-		return nil
+	// Social actions available out of turn (gates closed).
+	var social []Action
+	if len(s.Shukh[seat]) > 0 && (s.ShukhTakeable[seat] || s.Mode == Middle) {
+		// Guard: only when takeable. Middle: also offered early — an early take is
+		// allowed and caught as Ш-3 (§15.4).
+		social = append(social, TakeShukhCards{Seat: seat})
 	}
-	return turnActions(s, seat)
+	if seat != s.Turn {
+		return social
+	}
+	return append(turnActions(s, seat), social...)
 }
 
 // turnActions lists the turn-actions the seat to move may take in a normal

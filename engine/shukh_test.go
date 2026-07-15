@@ -143,6 +143,41 @@ func TestApplyShukhOneCardPlayerDoesNotPay(t *testing.T) {
 	require.Equal(t, []SeatID{2}, ns.Pending.Owed) // seat 1 (1 card) excluded
 }
 
+func TestApplyTakeShukhCardsWhenTakeable(t *testing.T) {
+	// Seat 0 has a takeable Shukh pile → lifts it into hand (R-8.3). It is a
+	// social action: it does not change whose turn it is.
+	s := middle(map[SeatID][]Card{
+		0: {{Spades, 7}},
+		1: {{Clubs, 8}},
+	}, nil, 1)
+	s.Shukh[0] = []Card{{Clubs, 9}, {Diamonds, 10}}
+	s.ShukhTakeable[0] = true
+
+	ns, events, err := Apply(s, TakeShukhCards{Seat: 0})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []Card{{Spades, 7}, {Clubs, 9}, {Diamonds, 10}}, ns.Hands[0])
+	require.Empty(t, ns.Shukh[0])
+	require.False(t, ns.ShukhTakeable[0])
+	require.Equal(t, SeatID(1), ns.Turn) // unchanged
+	require.Contains(t, events, ShukhCardsTaken{Seat: 0, Cards: []Card{{Clubs, 9}, {Diamonds, 10}}})
+}
+
+func TestCloseConMarksShukhTakeable(t *testing.T) {
+	// A Shukh pile laid during an open con becomes takeable when that con closes
+	// (P-4). 2 live, threshold 2: seat 0 beats 8♠ with 10♠ → close → mark.
+	s := middle(map[SeatID][]Card{
+		0: {{Spades, 10}, {Diamonds, 6}},
+		1: {{Clubs, 8}},
+	}, []TableCard{{Card: Card{Spades, 8}, By: 1}}, 0)
+	s.Shukh[1] = []Card{{Clubs, 9}}
+	require.False(t, s.ShukhTakeable[1])
+
+	ns, _, err := Apply(s, PlayCard{Card{Spades, 10}})
+	require.NoError(t, err)
+	require.Empty(t, ns.Table)
+	require.True(t, ns.ShukhTakeable[1])
+}
+
 func TestApplyShukhNobodyOwesAppliesImmediately(t *testing.T) {
 	// 2 live, opponent has 1 card → nobody owes → effect applies with no gate.
 	s := middle(map[SeatID][]Card{
