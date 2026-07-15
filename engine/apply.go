@@ -38,8 +38,9 @@ func Apply(s State, a Action) (State, []Event, error) {
 		if wasEmpty {
 			// Заход: never closes (threshold ≥ 2); pass the turn.
 			ns.settleTurn(ns.nextLive(turn), &events)
+		} else if len(ns.Table) == ns.liveCount() {
+			ns.closeCon(turn, &events)
 		} else {
-			// Бой: close/no-close handled in later tasks.
 			ns.settleTurn(ns.nextLive(turn), &events)
 		}
 	default:
@@ -114,4 +115,72 @@ func removeCard(hand []Card, c Card) []Card {
 		}
 	}
 	return hand
+}
+
+// closeCon sweeps the whole con to the discard (R-5.6, auto in Guard), applies
+// R-9.1 exits clockwise from the closer, and hands the next заход to the closer —
+// or, if the closer just exited, to the next live seat (R-5.7.2). The closing
+// card is already on the table.
+func (s *State) closeCon(closer SeatID, events *[]Event) {
+	swept := make([]Card, len(s.Table))
+	for i, tc := range s.Table {
+		swept[i] = tc.Card
+	}
+	s.Discard = append(s.Discard, swept...)
+	s.Table = nil
+	*events = append(*events, ConClosed{By: closer}, ConSwept{Cards: swept})
+
+	s.resolveExits(s.seatsFrom(closer), events)
+	if s.Phase == Finished {
+		return
+	}
+	cand := closer
+	if !s.Live[closer] {
+		cand = s.nextLive(closer)
+	}
+	s.settleTurn(cand, events)
+}
+
+// resolveExits applies R-9.1 exits for the seats in `order` (clockwise from the
+// seat whose action emptied/changed the con), then checks termination
+// (R-10.1/R-10.1.1). A live seat exits when its hand is empty and it has no card
+// in the open con. When one or zero players remain, the game ends and the loser
+// (if any) is appended last to Finish.
+func (s *State) resolveExits(order []SeatID, events *[]Event) {
+	for _, seat := range order {
+		if s.Live[seat] && len(s.Hands[seat]) == 0 && !s.handInCon(seat) {
+			s.Live[seat] = false
+			s.Finish = append(s.Finish, seat)
+			*events = append(*events, PlayerFinished{Seat: seat, Place: len(s.Finish)})
+		}
+	}
+	if s.liveCount() <= 1 {
+		s.Phase = Finished
+		for _, seat := range s.Seats {
+			if s.Live[seat] { // the loser still holds cards (R-10.1)
+				s.Finish = append(s.Finish, seat)
+			}
+		}
+		*events = append(*events, GameFinished{Finish: append([]SeatID(nil), s.Finish...)})
+	}
+}
+
+// seatsFrom returns all seats in clockwise order starting at pivot (inclusive).
+func (s State) seatsFrom(pivot SeatID) []SeatID {
+	n := len(s.Seats)
+	out := make([]SeatID, 0, n)
+	for k := 0; k < n; k++ {
+		out = append(out, s.Seats[(int(pivot)+k)%n])
+	}
+	return out
+}
+
+// handInCon reports whether any card in the open con was played by seat (R-9.1).
+func (s State) handInCon(seat SeatID) bool {
+	for _, tc := range s.Table {
+		if tc.By == seat {
+			return true
+		}
+	}
+	return false
 }

@@ -46,6 +46,67 @@ func TestApplyBeatNoClose(t *testing.T) {
 	require.Empty(t, ns.Discard)
 }
 
+func TestApplyCloseByCount(t *testing.T) {
+	// 2 live, threshold 2. Con has 8♠; seat 0 beats with 10♠ → len 2 == 2 → close.
+	// Both keep other cards, so nobody exits; closer (0) opens next; con → discard.
+	s := playing(map[SeatID][]Card{
+		0: {{Spades, 10}, {Diamonds, 6}},
+		1: {{Clubs, 8}},
+	}, []TableCard{{Card: Card{Spades, 8}, By: 1}}, 0)
+
+	ns, events, err := Apply(s, PlayCard{Card{Spades, 10}})
+	require.NoError(t, err)
+	require.Empty(t, ns.Table)
+	require.ElementsMatch(t, []Card{{Spades, 8}, {Spades, 10}}, ns.Discard)
+	require.Equal(t, SeatID(0), ns.Turn) // closer opens (R-5.7)
+	require.Equal(t, Playing, ns.Phase)
+	require.Equal(t, []Event{
+		CardPlayed{Seat: 0, Card: Card{Spades, 10}},
+		ConClosed{By: 0},
+		ConSwept{Cards: []Card{{Spades, 8}, {Spades, 10}}},
+	}, events)
+}
+
+func TestApplyCloseExitsCloserAndEndsGame(t *testing.T) {
+	// 2 live, threshold 2. Seat 1 opened 8♠ with its LAST card; seat 0 beats with
+	// its LAST card 10♠ → close. Sweep empties the table → both are handless with
+	// no card in con → both exit. liveCount 0 → game over. Order: clockwise from
+	// closer (0) → [0, 1]; loser is the last-placed (1).
+	s := playing(map[SeatID][]Card{
+		0: {{Spades, 10}},
+		1: {},
+	}, []TableCard{{Card: Card{Spades, 8}, By: 1}}, 0)
+
+	ns, events, err := Apply(s, PlayCard{Card{Spades, 10}})
+	require.NoError(t, err)
+	require.Equal(t, Finished, ns.Phase)
+	require.Equal(t, []SeatID{0, 1}, ns.Finish) // 0 first (winner), 1 last (loser)
+	require.Contains(t, events, PlayerFinished{Seat: 0, Place: 1})
+	require.Contains(t, events, PlayerFinished{Seat: 1, Place: 2})
+	require.Contains(t, events, GameFinished{Finish: []SeatID{0, 1}})
+}
+
+func TestApplyCloserExitedNextOpens(t *testing.T) {
+	// 3 live, threshold 3. Con has 8♠,9♠ (by seats 2,1); seat 0 beats with its
+	// LAST card 10♠ → len 3 == 3 → close. Seat 0 is now handless, table swept →
+	// seat 0 exits. Closer exited → next live clockwise (seat 1) opens (R-5.7.2).
+	s := playing(map[SeatID][]Card{
+		0: {{Spades, 10}},
+		1: {{Clubs, 7}},
+		2: {{Hearts, 9}},
+	}, []TableCard{
+		{Card: Card{Spades, 8}, By: 2},
+		{Card: Card{Spades, 9}, By: 1},
+	}, 0)
+
+	ns, _, err := Apply(s, PlayCard{Card{Spades, 10}})
+	require.NoError(t, err)
+	require.Equal(t, Playing, ns.Phase)
+	require.False(t, ns.Live[0])
+	require.Equal(t, []SeatID{0}, ns.Finish)
+	require.Equal(t, SeatID(1), ns.Turn) // R-5.7.2
+}
+
 func TestApplyRejectsIllegal(t *testing.T) {
 	s := playing(map[SeatID][]Card{0: {{Spades, 7}}, 1: {{Clubs, 8}}}, nil, 0)
 
