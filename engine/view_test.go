@@ -82,3 +82,55 @@ func TestViewPublicZones(t *testing.T) {
 	// Finish mirrors state (empty this early).
 	require.Equal(t, st.Finish, v.Finish)
 }
+
+func TestViewDoesNotLeakOrAlias(t *testing.T) {
+	st := viewGame(t)
+	seat := st.Turn
+
+	// Total cards across all hands are conserved: own hand (visible) + opponents'
+	// counts equals the sum of all hand sizes in state.
+	v := engine.View(st, seat)
+	total := len(v.Hand)
+	for _, o := range v.Opponents {
+		total += o.HandCount
+	}
+	sum := 0
+	for _, s := range st.Seats {
+		sum += len(st.Hands[s])
+	}
+	require.Equal(t, sum, total, "per‑seat visible + opponent counts conserve cards")
+
+	// Returned Hand is a copy: mutating it must not change the next View.
+	if len(v.Hand) > 0 {
+		v.Hand[0] = engine.Card{Suit: engine.Diamonds, Rank: 2}
+	}
+	v.Table = append(v.Table, engine.TableCard{})
+	v.Live[seat] = !v.Live[seat]
+
+	v2 := engine.View(st, seat)
+	require.ElementsMatch(t, st.Hands[seat], v2.Hand, "Hand mutation did not touch state")
+	require.Equal(t, st.Live[seat], v2.Live[seat], "Live mutation did not touch state")
+	require.Len(t, v2.Table, len(st.Table), "Table append did not touch state")
+
+	// View did not mutate the input state.
+	require.NoError(t, engine.CheckInvariants(st))
+}
+
+func TestViewDeterministic(t *testing.T) {
+	st := viewGame(t)
+	for _, seat := range st.Seats {
+		a := engine.View(st, seat)
+		b := engine.View(st, seat)
+		require.Equal(t, a, b, "View is a pure function of (state, seat)")
+	}
+}
+
+func TestViewWorksForEverySeatOffTurn(t *testing.T) {
+	st := viewGame(t)
+	for _, seat := range st.Seats {
+		v := engine.View(st, seat)
+		require.Equal(t, seat, v.You)
+		require.ElementsMatch(t, st.Hands[seat], v.Hand, "each seat sees its own hand regardless of turn")
+		require.Len(t, v.Opponents, len(st.Seats)-1)
+	}
+}
