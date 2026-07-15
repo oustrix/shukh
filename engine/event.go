@@ -59,6 +59,22 @@ type TurnSkipped struct {
 	Seat SeatID
 }
 
+// ShukhAssessed is emitted when a ШУХ is confirmed against Offender (§8); Code is
+// the §7 trigger.
+type ShukhAssessed struct {
+	Offender SeatID
+	Code     ShukhCode
+}
+
+// ActionReverted is emitted when a claimed ШУХ reverses the offender's last
+// action by restoring the pre-action snapshot (§15.3).
+type ActionReverted struct {
+	Seat SeatID
+}
+
+func (ShukhAssessed) isEvent()  {}
+func (ActionReverted) isEvent() {}
+
 func (GameStarted) isEvent()     {}
 func (CardPlayed) isEvent()      {}
 func (ConClosed) isEvent()       {}

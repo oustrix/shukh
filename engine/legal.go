@@ -7,9 +7,32 @@ import "slices"
 // iteration 4); other seats and a finished game yield nil. It is the executable
 // specification of §3/§5 that Apply validates against.
 func LegalActions(s State, seat SeatID) []Action {
-	if s.Phase == Finished || seat != s.Turn {
+	if s.Phase == Finished {
 		return nil
 	}
+	// An open Middle catch-window: any live seat ≠ offender may claim it; the
+	// offender's next-in-turn player may instead settle it with a normal move.
+	if s.Unsettled != nil {
+		var out []Action
+		if seat != s.Unsettled.Seat && s.Live[seat] {
+			out = append(out, ClaimShukh{Target: s.Unsettled.Seat, Code: s.Unsettled.Code})
+		}
+		if seat == s.Turn {
+			out = append(out, turnActions(s, seat)...) // the settling move
+		}
+		return out
+	}
+	if seat != s.Turn {
+		return nil
+	}
+	return turnActions(s, seat)
+}
+
+// turnActions lists the turn-actions the seat to move may take in a normal
+// position (§3/§5): a заход onto an empty con (R-5.2), the forced take when
+// handless-but-live (R-5.9), or a бой / take / западло on a non-empty con. It
+// assumes seat == s.Turn and no gate is open (callers gate this).
+func turnActions(s State, seat SeatID) []Action {
 	hand := s.Hands[seat]
 
 	if len(s.Table) == 0 {

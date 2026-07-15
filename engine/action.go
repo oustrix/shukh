@@ -17,6 +17,16 @@ type TakeBottomAndPass struct{}
 // player's hand and they open next (R-3.6.2/R-5.7.1).
 type PodkladkaWest struct{}
 
+// ClaimShukh catches an open Middle catch-window (§15.3): Target is the offender
+// (State.Unsettled.Seat), Code the claimed ШУХ (must match the window). It
+// reverses the offending action and assesses the ШУХ. Actor-agnostic (P-1): any
+// live non-target seat may raise it; the outcome depends only on the window.
+type ClaimShukh struct {
+	Target SeatID
+	Code   ShukhCode
+}
+
 func (PlayCard) isAction()          {}
 func (TakeBottomAndPass) isAction() {}
 func (PodkladkaWest) isAction()     {}
+func (ClaimShukh) isAction()        {}

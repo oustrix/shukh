@@ -22,12 +22,18 @@ func Apply(s State, a Action) (State, []Event, error) {
 	if s.Phase == Finished {
 		return s, nil, &IllegalAction{Code: "game_over", Rule: "R-10.1"}
 	}
-	turn := s.Turn
-	if !slices.Contains(LegalActions(s, turn), a) {
+	if !isLegal(s, a) {
 		return s, nil, &IllegalAction{Code: "illegal_action", Rule: "§5"}
 	}
+	turn := s.Turn
 	ns := s.clone()
 	var events []Event
+
+	// A non-claim action taken while a catch-window is open settles it (R-1.4.1):
+	// the offending action «прижилось» and stays. ClaimShukh instead reverses it.
+	if _, isClaim := a.(ClaimShukh); !isClaim && ns.Unsettled != nil {
+		ns.Unsettled = nil
+	}
 
 	switch act := a.(type) {
 	case PlayCard:
@@ -36,7 +42,12 @@ func Apply(s State, a Action) (State, []Event, error) {
 		ns.Table = append(ns.Table, TableCard{Card: act.Card, By: turn})
 		events = append(events, CardPlayed{Seat: turn, Card: act.Card})
 		if wasEmpty {
-			// Заход: never closes (threshold ≥ 2); pass the turn.
+			if IsQueenHearts(act.Card) {
+				// Middle Дама♥ заход (R-3.7.2): allowed but нелегально → open the
+				// Ш-2 catch-window over the pre-action snapshot (§15.3) and pass the
+				// turn so the next player can settle it (or someone may claim).
+				ns.Unsettled = &Unsettled{Prev: s, Seat: turn, Code: Sh2}
+			}
 			ns.settleTurn(ns.nextLive(turn), &events)
 		} else if IsQueenHearts(act.Card) || len(ns.Table) == ns.liveCount() {
 			ns.closeCon(turn, &events) // Дама♥ closes immediately (R-3.7.1)
@@ -71,6 +82,11 @@ func Apply(s State, a Action) (State, []Event, error) {
 		if ns.Phase != Finished {
 			ns.settleTurn(eater, &events)
 		}
+	case ClaimShukh:
+		// Reverse: restore the pre-action snapshot (§15.3), then assess the ШУХ.
+		ns = s.Unsettled.Prev.clone()
+		events = append(events, ActionReverted{Seat: s.Unsettled.Seat})
+		ns.assessShukh(s.Unsettled.Seat, s.Unsettled.Code, s.Unsettled.Code == Sh2, false, &events)
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -79,6 +95,56 @@ func Apply(s State, a Action) (State, []Event, error) {
 		return s, nil, &IllegalAction{Code: "not_implemented", Rule: "§5"}
 	}
 	return ns, events, nil
+}
+
+// isLegal validates a against LegalActions for the seat responsible for it (P-1).
+// Turn-actions check s.Turn; actor-carrying actions check their seat; the payer
+// action checks the current payer; actor-agnostic social actions are validated by
+// precondition (their legality does not depend on who raises them).
+func isLegal(s State, a Action) bool {
+	switch act := a.(type) {
+	case ClaimShukh:
+		return s.Unsettled != nil && s.Unsettled.Seat == act.Target && s.Unsettled.Code == act.Code
+	default:
+		return slices.Contains(LegalActions(s, s.Turn), a)
+	}
+}
+
+// assessShukh confirms a ШУХ against offender (§8, R-8.5): it emits ShukhAssessed,
+// then either opens a payment gate (obligated givers exist) or applies the effect
+// immediately (nobody owes). skip requests the offender's turn-skip (Ш-2/Ш-12);
+// thenDiscardWest sets the Ш-12 6(2)♥ obligation.
+func (s *State) assessShukh(offender SeatID, code ShukhCode, skip, thenDiscardWest bool, events *[]Event) {
+	*events = append(*events, ShukhAssessed{Offender: offender, Code: code})
+	// Task 5 opens the payment gate here; for now apply the effect directly.
+	s.applyShukhEffect(offender, skip, thenDiscardWest, events)
+}
+
+// applyShukhEffect applies a confirmed ШУХ's non-payment consequences (R-8.5):
+// mark the offender's Shukh pile takeable if the con is already over (P-4), skip
+// the offender's turn if required (Ш-2/Ш-12), and record the 6(2)♥ obligation
+// (Ш-12). The corrected position is then live for play.
+func (s *State) applyShukhEffect(offender SeatID, skip, thenDiscardWest bool, events *[]Event) {
+	if len(s.Table) == 0 {
+		s.markShukhTakeable()
+	}
+	if thenDiscardWest {
+		s.Endgame.MustDiscard = true
+	}
+	if skip {
+		s.settleTurn(s.nextLive(offender), events)
+	}
+}
+
+// markShukhTakeable makes every non-empty Shukh pile takeable (R-8.3): called when
+// the con that held the ШУХ ends — i.e. the table is (or has just become) empty
+// (P-4).
+func (s *State) markShukhTakeable() {
+	for seat, pile := range s.Shukh {
+		if len(pile) > 0 {
+			s.ShukhTakeable[seat] = true
+		}
+	}
 }
 
 // clone returns a deep-enough copy for copy-on-write: all mutated maps and slices
