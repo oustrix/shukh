@@ -1,0 +1,26 @@
+:root {
+  --felt: #16653b;
+  --felt-dark: #0f4a2b;
+  --card-bg: #fffdf7;
+  --card-frame: #d9d2be;
+  --card-back: #7c1f2b;
+  --suit-red: #c62828;
+  --suit-black: #1b1b1b;
+  --accent: #e0b64a;
+  --text: #f5f3ec;
+  --radius: 8px;
+  --shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  --gap: 8px;
+  --font: system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--felt-dark);
+}

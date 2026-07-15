@@ -1,0 +1,26 @@
+.card {
+  width: 60px;
+  height: 84px;
+  filter: drop-shadow(var(--shadow));
+}
+.clickable {
+  cursor: pointer;
+}
+.frame {
+  fill: var(--card-bg);
+  stroke: var(--card-frame);
+  stroke-width: 1;
+}
+.back {
+  fill: var(--card-back);
+}
+.red text {
+  fill: var(--suit-red);
+}
+.black text {
+  fill: var(--suit-black);
+}
+.selected {
+  transform: translateY(-10px);
+  transition: transform 0.12s ease;
+}
