@@ -50,6 +50,11 @@ type AskCount struct{ Target SeatID }
 // turn-action for the holder at заход time; it passes the turn (P-5).
 type DiscardWest struct{}
 
+// AskAboutWest asks whether Target holds 6(2)♥ in the endgame (R-9.4). It closes
+// the безнаказанно window (Endgame.Asked) and, if Target still holds 6(2)♥,
+// assesses Ш-12 (skip + discard obligation). Actor-agnostic (P-1).
+type AskAboutWest struct{ Target SeatID }
+
 func (PlayCard) isAction()          {}
 func (DiscardWest) isAction()       {}
 func (TakeBottomAndPass) isAction() {}
@@ -59,3 +64,4 @@ func (GiveShukhCard) isAction()     {}
 func (TakeShukhCards) isAction()    {}
 func (DeclareOneCard) isAction()    {}
 func (AskCount) isAction()          {}
+func (AskAboutWest) isAction()      {}

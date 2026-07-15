@@ -61,3 +61,61 @@ func TestEndgameGuardBlocksSixHeartsZahod(t *testing.T) {
 	require.NotContains(t, LegalActions(s, 0), PlayCard{Card{Hearts, 6}})
 	require.Contains(t, LegalActions(s, 0), DiscardWest{})
 }
+
+func TestAskAboutWestAssessesSh12(t *testing.T) {
+	// Endgame, unasked. Seat 1 asks seat 0, who still holds 6(2)♥ → Ш-12: skip +
+	// obligation to discard (R-9.4.2/R-9.4.3). Asked becomes true.
+	s := middle(map[SeatID][]Card{
+		0: {{Hearts, 6}, {Spades, 7}},
+		1: {{Clubs, 8}, {Clubs, 9}},
+	}, nil, 0)
+	s.Endgame = EndgameState{Active: true}
+	require.Contains(t, LegalActions(s, 1), AskAboutWest{Target: 0})
+
+	ns, events, err := Apply(s, AskAboutWest{Target: 0})
+	require.NoError(t, err)
+	require.True(t, ns.Endgame.Asked)
+	require.Contains(t, events, ShukhAssessed{Offender: 0, Code: Sh12})
+	require.NotNil(t, ns.Pending)
+	require.True(t, ns.Pending.Skip)
+	require.True(t, ns.Pending.ThenDiscardWest)
+}
+
+func TestAskAboutWestNoShukhWhenAlreadyDiscarded(t *testing.T) {
+	// Asked but seat 0 no longer holds 6(2)♥ (discarded earlier) → no ШУХ, just
+	// closes the безнаказанно window.
+	s := middle(map[SeatID][]Card{
+		0: {{Spades, 7}},
+		1: {{Clubs, 8}},
+	}, nil, 0)
+	s.Endgame = EndgameState{Active: true}
+	ns, events, err := Apply(s, AskAboutWest{Target: 0})
+	require.NoError(t, err)
+	require.True(t, ns.Endgame.Asked)
+	require.Nil(t, ns.Pending)
+	for _, e := range events {
+		_, isAssessed := e.(ShukhAssessed)
+		require.False(t, isAssessed)
+	}
+}
+
+func TestMiddleSixHeartsZahodCaughtAsSh12(t *testing.T) {
+	// Middle endgame: seat 0 заходит with 6(2)♥ («использование», R-9.4.3) → Ш-12
+	// window. A claim reverses it (6(2)♥ back in hand), skips, and obligates the
+	// discard.
+	s := middle(map[SeatID][]Card{
+		0: {{Hearts, 6}, {Spades, 7}},
+		1: {{Clubs, 8}, {Clubs, 9}},
+	}, nil, 0)
+	s.Endgame = EndgameState{Active: true}
+	ns, _, err := Apply(s, PlayCard{Card{Hearts, 6}})
+	require.NoError(t, err)
+	require.NotNil(t, ns.Unsettled)
+	require.Equal(t, Sh12, ns.Unsettled.Code)
+
+	ns2, events, err := Apply(ns, ClaimShukh{Target: 0, Code: Sh12})
+	require.NoError(t, err)
+	require.Contains(t, events, ShukhAssessed{Offender: 0, Code: Sh12})
+	require.ElementsMatch(t, []Card{{Hearts, 6}, {Spades, 7}}, ns2.Hands[0]) // reversed
+	require.True(t, ns2.Pending.ThenDiscardWest)
+}

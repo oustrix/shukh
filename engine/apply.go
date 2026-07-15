@@ -46,11 +46,16 @@ func Apply(s State, a Action) (State, []Event, error) {
 		ns.Table = append(ns.Table, TableCard{Card: act.Card, By: turn})
 		events = append(events, CardPlayed{Seat: turn, Card: act.Card})
 		if wasEmpty {
-			if IsQueenHearts(act.Card) {
+			switch {
+			case IsQueenHearts(act.Card):
 				// Middle Дама♥ заход (R-3.7.2): allowed but нелегально → open the
 				// Ш-2 catch-window over the pre-action snapshot (§15.3) and pass the
 				// turn so the next player can settle it (or someone may claim).
 				ns.Unsettled = &Unsettled{Prev: s, Seat: turn, Code: Sh2}
+			case ns.Endgame.Active && ns.Rules.IsLowestHeart(act.Card):
+				// Middle endgame 6(2)♥ заход = «использование» (R-9.4.3): allowed but
+				// нелегально → open the Ш-12 catch-window (§15.3).
+				ns.Unsettled = &Unsettled{Prev: s, Seat: turn, Code: Sh12}
 			}
 			ns.settleTurn(ns.nextLive(turn), &events)
 		} else if IsQueenHearts(act.Card) || len(ns.Table) == ns.liveCount() {
@@ -94,7 +99,9 @@ func Apply(s State, a Action) (State, []Event, error) {
 		// Reverse: restore the pre-action snapshot (§15.3), then assess the ШУХ.
 		ns = s.Unsettled.Prev.clone()
 		events = append(events, ActionReverted{Seat: s.Unsettled.Seat})
-		ns.assessShukh(s.Unsettled.Seat, s.Unsettled.Code, s.Unsettled.Code == Sh2, false, &events)
+		skip := s.Unsettled.Code == Sh2 || s.Unsettled.Code == Sh12
+		thenDiscard := s.Unsettled.Code == Sh12
+		ns.assessShukh(s.Unsettled.Seat, s.Unsettled.Code, skip, thenDiscard, &events)
 		before = handSizes(ns.Hands) // reconcile against the restored snapshot, not the post-offense sizes
 	case GiveShukhCard:
 		// A §8 payment: the current head payer moves one non-last card into the
@@ -135,6 +142,12 @@ func Apply(s State, a Action) (State, []Event, error) {
 		ns.Endgame.MustDiscard = false
 		events = append(events, WestDiscarded{Seat: turn})
 		ns.settleTurn(ns.nextLive(turn), &events)
+	case AskAboutWest:
+		ns.Endgame.Asked = true
+		west := Card{Suit: Hearts, Rank: ns.Rules.LowestRank()} // 6(2)♥
+		if slices.Contains(ns.Hands[act.Target], west) {
+			ns.assessShukh(act.Target, Sh12, true, true, &events) // R-9.4.2: skip + discard
+		}
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -165,6 +178,10 @@ func isLegal(s State, a Action) bool {
 		return slices.Contains(LegalActions(s, act.Seat), a)
 	case AskCount:
 		return s.gatesClosed() && s.OwesOneCard[act.Target]
+	case AskAboutWest:
+		// Actor-agnostic (P-1), like AskCount: legality is by Target's state alone,
+		// not by who is asking (the asker seat is not modeled).
+		return s.gatesClosed() && s.Endgame.Active && !s.Endgame.Asked && s.Live[act.Target]
 	default:
 		return slices.Contains(LegalActions(s, s.Turn), a)
 	}

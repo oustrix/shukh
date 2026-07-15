@@ -53,6 +53,13 @@ func LegalActions(s State, seat SeatID) []Action {
 			social = append(social, AskCount{Target: t})
 		}
 	}
+	if s.Endgame.Active && !s.Endgame.Asked {
+		for _, t := range s.Seats {
+			if t != seat && s.Live[t] {
+				social = append(social, AskAboutWest{Target: t})
+			}
+		}
+	}
 	if seat != s.Turn {
 		return social
 	}
