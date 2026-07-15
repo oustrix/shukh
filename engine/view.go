@@ -58,6 +58,7 @@ func View(s State, seat SeatID) SeatView {
 		Talon:        len(s.Talon),
 		Live:         make(map[SeatID]bool, len(s.Live)),
 		Finish:       slices.Clone(s.Finish),
+		Opponents:    make([]OpponentView, 0, len(s.Seats)-1),
 	}
 	for _, k := range opps[1:] { // skip seat itself
 		v.Opponents = append(v.Opponents, OpponentView{

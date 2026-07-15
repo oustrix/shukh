@@ -14,18 +14,10 @@ import (
 func viewGame(t *testing.T) engine.State {
 	t.Helper()
 	rs := engine.RuleSet{DeckSize: engine.Deck36}
-	cfg := engine.Config{Rules: rs, Mode: engine.Middle, Players: viewPlayers(3)}
+	cfg := engine.Config{Rules: rs, Mode: engine.Middle, Players: players(3)}
 	st, _, err := engine.NewGame(cfg, shuffle.Deck(engine.NewDeck(rs), 12345))
 	require.NoError(t, err)
 	return st
-}
-
-func viewPlayers(n int) []engine.Player {
-	ps := make([]engine.Player, n)
-	for i := range ps {
-		ps[i] = engine.Player{Name: "p"}
-	}
-	return ps
 }
 
 func TestViewProjectsSelfAndOpponents(t *testing.T) {
