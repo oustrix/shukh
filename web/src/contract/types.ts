@@ -24,7 +24,9 @@ export interface TableCard {
   by: SeatID
 }
 
-// зеркало engine/view.go (per-seat проекция, D-9) — синхронизировать вручную
+// зеркало engine/view.go (per-seat проекция, D-9) — синхронизировать вручную.
+// NB: engine.View(state,seat) ещё не реализован — форма опережает движок (W-3);
+// синхронизировать, как только view.go появится.
 export interface OpponentView {
   seat: SeatID
   handCount: number
