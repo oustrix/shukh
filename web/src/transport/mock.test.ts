@@ -15,11 +15,11 @@ test('send записывает действие в sent', () => {
   expect(t.sent).toEqual([{ type: 'takeBottomAndPass' }])
 })
 
-test('после отписки снапшоты больше не приходят', () => {
+test('subscribe возвращает функцию отписки; снапшот приходит ровно один раз (emit-once)', () => {
   const t = createMockTransport(gameSnapshot)
   let calls = 0
   const unsub = t.subscribe(() => (calls += 1), () => {})
-  unsub()
-  // повторных пушей мок не делает; проверяем, что первичный пуш был ровно один
-  expect(calls).toBe(1)
+  expect(typeof unsub).toBe('function')
+  expect(calls).toBe(1) // мок пушит один раз при подписке; повторных пушей нет
+  expect(() => unsub()).not.toThrow()
 })
