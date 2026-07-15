@@ -21,7 +21,9 @@ func CheckInvariants(s State) error {
 	for _, h := range s.Hands {
 		count(h)
 	}
-	count(s.Table)
+	for _, tc := range s.Table {
+		seen[tc.Card]++
+	}
 	count(s.Discard)
 	for _, z := range s.Shukh {
 		count(z)

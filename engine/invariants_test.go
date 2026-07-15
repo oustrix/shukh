@@ -36,6 +36,6 @@ func TestCheckInvariantsI1DuplicateCard(t *testing.T) {
 
 func TestCheckInvariantsI1ForeignCard(t *testing.T) {
 	s := fullState(RuleSet{DeckSize: Deck36})
-	s.Table = []Card{{Hearts, 2}} // 2♥ is not in a 36-card deck
+	s.Table = []TableCard{{Card: Card{Hearts, 2}}} // 2♥ is not in a 36-card deck
 	require.Error(t, CheckInvariants(s))
 }

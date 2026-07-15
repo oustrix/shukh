@@ -36,6 +36,14 @@ type Player struct {
 	Name string
 }
 
+// TableCard is a card on the con together with the seat that played it. The
+// owner is needed to decide exit (R-9.1/R-5.9) and to route "take the bottom"
+// (R-5.8) — the con is physically a stack of specific players' cards.
+type TableCard struct {
+	Card Card
+	By   SeatID
+}
+
 // Config is the immutable setup of a game: rules, enforcement mode, and the
 // players in clockwise order (spec §4).
 type Config struct {
@@ -76,7 +84,7 @@ type State struct {
 
 	Talon   []Card            // undealt deck; empty after NewGame (dealing done, R-4.10)
 	Hands   map[SeatID][]Card // each player's hand (a set; order irrelevant to play)
-	Table   []Card            // the con, bottom→top; empty at start of game
+	Table   []TableCard       // the con, bottom→top; empty at start of game
 	Discard []Card            // closed discard pile (R-2.9)
 	Shukh   map[SeatID][]Card // set-aside ШУХ cards, face down (R-2.10, I-3)
 
