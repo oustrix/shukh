@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/oustrix/shukh/engine"
@@ -87,9 +88,19 @@ func TestViewDoesNotLeakOrAlias(t *testing.T) {
 	st := viewGame(t)
 	seat := st.Turn
 
-	// Total cards across all hands are conserved: own hand (visible) + opponents'
-	// counts equals the sum of all hand sizes in state.
-	v := engine.View(st, seat)
+	// Play one card so the con is non-empty — this lets us exercise the Table copy.
+	acts := engine.LegalActions(st, seat)
+	require.NotEmpty(t, acts)
+	play, ok := acts[0].(engine.PlayCard)
+	require.True(t, ok, "opener's first legal action is a PlayCard")
+	st, _, err := engine.Apply(st, play)
+	require.NoError(t, err)
+	require.NotEmpty(t, st.Table, "con is non-empty after the заход")
+
+	v := engine.View(st, seat) // the opener is still live and holds cards
+
+	// Card conservation, computed before any mutation: own hand + opponent counts
+	// equals the sum of all hand sizes in state.
 	total := len(v.Hand)
 	for _, o := range v.Opponents {
 		total += o.HandCount
@@ -98,19 +109,29 @@ func TestViewDoesNotLeakOrAlias(t *testing.T) {
 	for _, s := range st.Seats {
 		sum += len(st.Hands[s])
 	}
-	require.Equal(t, sum, total, "per‑seat visible + opponent counts conserve cards")
+	require.Equal(t, sum, total, "per-seat visible + opponent counts conserve cards")
 
-	// Returned Hand is a copy: mutating it must not change the next View.
-	if len(v.Hand) > 0 {
-		v.Hand[0] = engine.Card{Suit: engine.Diamonds, Rank: 2}
-	}
-	v.Table = append(v.Table, engine.TableCard{})
+	// Snapshot the state we will try to corrupt through the returned view.
+	wantHand := slices.Clone(st.Hands[seat])
+	wantTable := slices.Clone(st.Table)
+	wantLive := st.Live[seat]
+	require.NotEmpty(t, v.Hand, "opener still holds cards after one play")
+
+	// Mutate existing elements of the returned copies (not appends).
+	v.Hand[0] = engine.Card{Suit: engine.Diamonds, Rank: 2}
+	v.Table[0] = engine.TableCard{}
 	v.Live[seat] = !v.Live[seat]
 
+	// State is untouched: the returned slices/maps were copies.
+	require.Equal(t, wantHand, st.Hands[seat], "Hand mutation did not touch state")
+	require.Equal(t, wantTable, st.Table, "Table element mutation did not touch state")
+	require.Equal(t, wantLive, st.Live[seat], "Live mutation did not touch state")
+
+	// A fresh view reflects the pristine state, not the mutated copies.
 	v2 := engine.View(st, seat)
-	require.ElementsMatch(t, st.Hands[seat], v2.Hand, "Hand mutation did not touch state")
-	require.Equal(t, st.Live[seat], v2.Live[seat], "Live mutation did not touch state")
-	require.Len(t, v2.Table, len(st.Table), "Table append did not touch state")
+	require.ElementsMatch(t, wantHand, v2.Hand)
+	require.Equal(t, wantTable, v2.Table)
+	require.Equal(t, wantLive, v2.Live[seat])
 
 	// View did not mutate the input state.
 	require.NoError(t, engine.CheckInvariants(st))
