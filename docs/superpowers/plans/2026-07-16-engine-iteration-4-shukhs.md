@@ -1386,13 +1386,24 @@ func (s *State) reconcileOneCard(before map[SeatID]int) {
 }
 ```
 
+Add a `handSizes` helper (used for both the top-of-`Apply` capture and the `ClaimShukh` re-capture below):
+
+```go
+// handSizes snapshots each seat's hand size — the basis reconcileOneCard compares
+// against to detect a transition into/out of exactly one card (§15.6).
+func handSizes(hands map[SeatID][]Card) map[SeatID]int {
+	m := make(map[SeatID]int, len(hands))
+	for seat, h := range hands {
+		m[seat] = len(h)
+	}
+	return m
+}
+```
+
 Capture the pre-action sizes and reconcile at the end of `Apply`. Just after `ns := s.clone()` (and the settle-guard), add:
 
 ```go
-	before := make(map[SeatID]int, len(s.Hands))
-	for seat, h := range s.Hands {
-		before[seat] = len(h)
-	}
+	before := handSizes(s.Hands)
 ```
 
 And just before `return ns, events, nil`, add:
@@ -1401,7 +1412,13 @@ And just before `return ns, events, nil`, add:
 	ns.reconcileOneCard(before)
 ```
 
-> `reconcileOneCard` runs for **every** action, so a payment that drops a giver to one card (§15.4) also sets its flag, and a `ClaimShukh` reverse (which rebuilds `ns` from the snapshot) reconciles against the true pre-action sizes. The snapshot's own `OwesOneCard` is restored first, then reconciled — consistent because the reversed hands equal the pre-action hands.
+> **`ClaimShukh` must re-base `before`.** `reconcileOneCard` runs for **every** action, so a payment that drops a giver to one card (§15.4) also sets its flag. But `ClaimShukh` replaces `ns` with the pre-offense snapshot (`ns = s.Unsettled.Prev.clone()`), whose hand sizes differ from the post-offense `s.Hands` for the **offender's own seat** (the reversed offense changed that hand — e.g. a lone `Дама♥` заход took the offender from 1 card to 0). Reconciling the snapshot against the post-offense `before` would then spuriously flip the offender's `OwesOneCard` to true, clobbering the correct (possibly already-declared) flag the snapshot restored. Since the claim itself changes no hand size, the fix is to re-base `before` from the restored snapshot so the reconcile is a no-op. In the `ClaimShukh` case (Task 4), after `ns.assessShukh(...)`, add:
+>
+> ```go
+> 		before = handSizes(ns.Hands) // reconcile against the restored snapshot, not the post-offense sizes
+> ```
+>
+> (Task 8 introduces `reconcileOneCard`/`before`; this `ClaimShukh` line is added in the same task, alongside the `handSizes` helper.)
 
 - [ ] **Step 5: Offer `DeclareOneCard`; add the case and `isLegal` routing**
 
