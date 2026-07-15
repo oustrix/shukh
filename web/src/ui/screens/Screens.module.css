@@ -1,0 +1,19 @@
+.centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 16px;
+}
+.centered input {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--card-frame);
+  font: inherit;
+  min-width: 220px;
+}
+.players {
+  list-style: none;
+  padding: 0;
+  text-align: center;
+}
