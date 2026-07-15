@@ -7,11 +7,11 @@ package engine
 //	♠ (пика)   — only a higher ♠; trump does NOT beat it (R-3.3, I-7)
 //	♦ (козырь) — only a higher ♦ (R-3.1)
 //	♥ / ♣      — a higher card of the same suit OR any ♦ (R-3.1, R-3.2)
-//	Дама ♥     — beats any card (R-3.7.1)
+//	Дама ♥     — beats any card (R-3.7.1); nothing beats Дама ♥ as top (R-3.7)
 //
-// CanBeat assumes top is a legitimate beatable top. Дама ♥ never persists as a
-// top card because it immediately closes the con (R-3.7.1); the con lifecycle
-// (a later iteration) guarantees this.
+// Дама ♥ tops a stable con only transiently, during an open Middle Ш-2 catch-
+// window (§15.3) — in Guard it closes the con the instant it is played (R-3.7.1).
+// Either way nothing may beat it, so the next player is forced to take it.
 func CanBeat(top, c Card) bool {
 	if IsQueenHearts(c) {
 		return true // R-3.7.1 — highest card, beats anything
