@@ -42,5 +42,17 @@ func CheckInvariants(s State) error {
 	if len(seen) != rs.deckCount() {
 		return fmt.Errorf("engine: I-1 violated: %d distinct cards present across zones, want %d", len(seen), rs.deckCount())
 	}
+
+	// I-6 + beat-stack oracle (§14.5): the con is a legal stack — each card
+	// legally beats the one below it (⇒ I-7) — and Дама♥ never rests on the table
+	// (it closes the con immediately, R-3.7.1).
+	for i, tc := range s.Table {
+		if IsQueenHearts(tc.Card) {
+			return fmt.Errorf("engine: I-6 violated: Дама♥ present on the con")
+		}
+		if i > 0 && !CanBeat(s.Table[i-1].Card, tc.Card) {
+			return fmt.Errorf("engine: beat-stack violated: %v does not legally beat %v", tc.Card, s.Table[i-1].Card)
+		}
+	}
 	return nil
 }
