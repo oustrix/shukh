@@ -88,3 +88,20 @@ func TestLegalActionsLoneQueenIsEmpty(t *testing.T) {
 	s := playing(map[SeatID][]Card{0: {{Hearts, Queen}}, 1: {{Clubs, 8}}}, nil, 0)
 	require.Empty(t, LegalActions(s, 0))
 }
+
+func TestLegalActionsMiddleAllowsQueenZahod(t *testing.T) {
+	// Empty con. In Guard the Дама♥ заход is blocked (§14.4); in Middle it is
+	// allowed and caught as Ш-2 (§15.3), so it appears among legal заходы.
+	s := playing(map[SeatID][]Card{
+		0: {{Spades, 7}, {Hearts, Queen}},
+		1: {{Clubs, 8}},
+	}, nil, 0)
+
+	require.ElementsMatch(t, []Action{PlayCard{Card{Spades, 7}}}, LegalActions(s, 0)) // Guard
+
+	s.Mode = Middle
+	require.ElementsMatch(t, []Action{
+		PlayCard{Card{Spades, 7}},
+		PlayCard{Card{Hearts, Queen}},
+	}, LegalActions(s, 0))
+}

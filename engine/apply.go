@@ -168,8 +168,10 @@ func (s *State) settleTurn(candidate SeatID, events *[]Event) {
 	if !s.Live[seat] {
 		seat = s.nextLive(seat)
 	}
-	// TODO(iter4): gate on s.Mode == Guard — Middle/Culture allow the Дама♥ заход and catch it as Ш-2 instead of skipping.
-	for s.forcedQueenSkip(seat) {
+	// The lone-Дама♥ opener skip is a Guard-only device (§14.4). In Middle the
+	// Дама♥ заход is allowed and caught as Ш-2, so Turn may legitimately rest on
+	// such a seat; do not skip.
+	for s.Mode == Guard && s.forcedQueenSkip(seat) {
 		*events = append(*events, TurnSkipped{Seat: seat})
 		seat = s.nextLive(seat)
 	}

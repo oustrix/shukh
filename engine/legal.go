@@ -17,10 +17,12 @@ func LegalActions(s State, seat SeatID) []Action {
 		// skip (§14.4) keeps Turn from ever resting here.
 		var out []Action
 		for _, c := range hand {
-			// TODO(iter4): Guard blocks the Дама♥ заход (R-3.7.2); Middle/Culture allow it and catch as Ш-2.
-			if !IsQueenHearts(c) {
-				out = append(out, PlayCard{Card: c})
+			// Дама♥ заход (R-3.7.2): Guard blocks it (§14.4); Middle allows it and
+			// catches it as Ш-2 via the Unsettled window (§15.3).
+			if IsQueenHearts(c) && s.Mode == Guard {
+				continue
 			}
+			out = append(out, PlayCard{Card: c})
 		}
 		return out
 	}
