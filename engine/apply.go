@@ -58,11 +58,7 @@ func Apply(s State, a Action) (State, []Event, error) {
 		west := Card{Suit: Hearts, Rank: ns.Rules.LowestRank()} // 6(2)♥
 		ns.Hands[turn] = removeCard(ns.Hands[turn], west)
 		eater := ns.nextLive(turn)
-		eaten := make([]Card, 0, len(ns.Table)+1)
-		eaten = append(eaten, west) // tucked under the bottom (R-3.6.2)
-		for _, tc := range ns.Table {
-			eaten = append(eaten, tc.Card)
-		}
+		eaten := append([]Card{west}, cardsOf(ns.Table)...) // 6(2)♥ tucked under the con (R-3.6.2)
 		ns.Hands[eater] = append(ns.Hands[eater], eaten...)
 		ns.Table = nil
 		events = append(events,
@@ -140,11 +136,16 @@ func (s State) forcedQueenSkip(seat SeatID) bool {
 	return len(s.Table) == 0 && len(h) == 1 && IsQueenHearts(h[0])
 }
 
-// settleTurn points Turn at candidate, skipping past a live seat stuck in the
-// Guard lone-Дама♥ opener case (§14.4) and emitting TurnSkipped for it. At most
-// one seat can qualify (a single Дама♥ exists), so this skips at most once.
+// settleTurn resolves a candidate opener into the actual next Turn: if the
+// candidate exited during this resolution it advances to the next live seat
+// (R-5.7.2), then skips past a seat stuck in the Guard lone-Дама♥ opener case
+// (§14.4, emitting TurnSkipped). It thus always lands on a live, playable seat.
+// At most one seat can qualify for the Дама♥ skip (a single Дама♥ exists).
 func (s *State) settleTurn(candidate SeatID, events *[]Event) {
 	seat := candidate
+	if !s.Live[seat] {
+		seat = s.nextLive(seat)
+	}
 	// TODO(iter4): gate on s.Mode == Guard — Middle/Culture allow the Дама♥ заход and catch it as Ш-2 instead of skipping.
 	for s.forcedQueenSkip(seat) {
 		*events = append(*events, TurnSkipped{Seat: seat})
@@ -169,10 +170,7 @@ func removeCard(hand []Card, c Card) []Card {
 // or, if the closer just exited, to the next live seat (R-5.7.2). The closing
 // card is already on the table.
 func (s *State) closeCon(closer SeatID, events *[]Event) {
-	swept := make([]Card, len(s.Table))
-	for i, tc := range s.Table {
-		swept[i] = tc.Card
-	}
+	swept := cardsOf(s.Table)
 	s.Discard = append(s.Discard, swept...)
 	s.Table = nil
 	*events = append(*events, ConClosed{By: closer}, ConSwept{Cards: swept})
@@ -181,11 +179,9 @@ func (s *State) closeCon(closer SeatID, events *[]Event) {
 	if s.Phase == Finished {
 		return
 	}
-	cand := closer
-	if !s.Live[closer] {
-		cand = s.nextLive(closer)
-	}
-	s.settleTurn(cand, events)
+	// The closer opens next (R-5.7); if it just exited, settleTurn falls back to
+	// the next live seat (R-5.7.2).
+	s.settleTurn(closer, events)
 }
 
 // resolveExits applies R-9.1 exits for the seats in `order` (clockwise from the
@@ -224,10 +220,14 @@ func (s State) seatsFrom(pivot SeatID) []SeatID {
 
 // handInCon reports whether any card in the open con was played by seat (R-9.1).
 func (s State) handInCon(seat SeatID) bool {
-	for _, tc := range s.Table {
-		if tc.By == seat {
-			return true
-		}
+	return slices.ContainsFunc(s.Table, func(tc TableCard) bool { return tc.By == seat })
+}
+
+// cardsOf projects a con (or any TableCard slice) to its bare cards, bottom→top.
+func cardsOf(tcs []TableCard) []Card {
+	out := make([]Card, len(tcs))
+	for i, tc := range tcs {
+		out[i] = tc.Card
 	}
-	return false
+	return out
 }
