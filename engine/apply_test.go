@@ -26,6 +26,26 @@ func TestApplyZahod(t *testing.T) {
 	require.Len(t, s.Hands[0], 2)
 }
 
+func TestApplyBeatNoClose(t *testing.T) {
+	// 3 live players, threshold 3. Con has 1 card (8♠); seat 0 beats with 10♠.
+	// len(table) becomes 2 < 3 → no close, turn passes to seat 1.
+	s := playing(map[SeatID][]Card{
+		0: {{Spades, 10}, {Diamonds, 6}},
+		1: {{Clubs, 8}},
+		2: {{Hearts, 9}},
+	}, []TableCard{{Card: Card{Spades, 8}, By: 2}}, 0)
+
+	ns, events, err := Apply(s, PlayCard{Card{Spades, 10}})
+	require.NoError(t, err)
+	require.Equal(t, []TableCard{
+		{Card: Card{Spades, 8}, By: 2},
+		{Card: Card{Spades, 10}, By: 0},
+	}, ns.Table)
+	require.Equal(t, SeatID(1), ns.Turn)
+	require.Equal(t, []Event{CardPlayed{Seat: 0, Card: Card{Spades, 10}}}, events)
+	require.Empty(t, ns.Discard)
+}
+
 func TestApplyRejectsIllegal(t *testing.T) {
 	s := playing(map[SeatID][]Card{0: {{Spades, 7}}, 1: {{Clubs, 8}}}, nil, 0)
 
