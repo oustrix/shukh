@@ -40,3 +40,22 @@ func TestApplyRejectsIllegal(t *testing.T) {
 	_, _, err = Apply(s2, PlayCard{Card{Hearts, Queen}})
 	require.Error(t, err)
 }
+
+func TestApplyRejectsUnimplementedActions(t *testing.T) {
+	// TakeBottomAndPass and PodkladkaWest are legal per LegalActions but not yet
+	// wired into Apply (Tasks 7/8). Until then Apply must reject them with a typed
+	// error, never silently no-op. (This test is superseded when those tasks land.)
+	s := playing(map[SeatID][]Card{
+		0: {{Hearts, 6}},
+		1: {{Clubs, 8}},
+	}, []TableCard{{Card: Card{Hearts, 7}, By: 1}}, 0)
+
+	for _, a := range []Action{TakeBottomAndPass{}, PodkladkaWest{}} {
+		ns, events, err := Apply(s, a)
+		var illegal *IllegalAction
+		require.ErrorAs(t, err, &illegal, "%T must be rejected, not silently applied", a)
+		require.Nil(t, events)
+		require.Empty(t, ns.Table[:0]) // input untouched: table still holds the 7♥
+	}
+	require.Len(t, s.Table, 1) // Apply did not mutate the input
+}

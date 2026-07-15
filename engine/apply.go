@@ -42,6 +42,12 @@ func Apply(s State, a Action) (State, []Event, error) {
 			// Бой: close/no-close handled in later tasks.
 			ns.settleTurn(ns.nextLive(turn), &events)
 		}
+	default:
+		// TakeBottomAndPass and PodkladkaWest are legal per LegalActions in many
+		// states, but their Apply cases land in Tasks 7/8. Until then, reject
+		// rather than silently no-op (a legal move must never look applied when
+		// nothing changed).
+		return s, nil, &IllegalAction{Code: "not_implemented", Rule: "§5"}
 	}
 	return ns, events, nil
 }
