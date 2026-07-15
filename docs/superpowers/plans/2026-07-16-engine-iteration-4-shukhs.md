@@ -1878,10 +1878,10 @@ In `engine/apply.go`, extend `isLegal`:
 
 ```go
 	case AskAboutWest:
-		return s.gatesClosed() && s.Endgame.Active && !s.Endgame.Asked && s.Live[act.Target] && act.Target != s.Turn
+		return s.gatesClosed() && s.Endgame.Active && !s.Endgame.Asked && s.Live[act.Target]
 ```
 
-> `act.Target != s.Turn` is a light guard; in a 2-player endgame the asker is the non-target live seat. (The asker seat is not modeled; legality is by the window, P-1.)
+> Legality is by the target's state only (P-1, mirroring `AskCount`) — no `s.Turn` condition. In the endgame the `6(2)♥` holder being asked about is typically the player to move, so a `Target != s.Turn` guard would wrongly reject the normal case; the asker seat is not modeled, and asking about a non-holder simply sets `Endgame.Asked` with no ШУХ.
 
 Add the `AskAboutWest` case to `Apply` (before `default`):
 
