@@ -16,6 +16,9 @@ func CanBeat(top, c Card) bool {
 	if IsQueenHearts(c) {
 		return true // R-3.7.1 — highest card, beats anything
 	}
+	if IsQueenHearts(top) {
+		return false // R-3.7 — nothing beats Дама♥ (it only tops a con during a Ш-2 window)
+	}
 	switch top.Suit {
 	case Spades:
 		return c.Suit == Spades && c.Rank > top.Rank // R-3.3, I-7

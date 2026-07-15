@@ -51,3 +51,11 @@ func TestCanBeat(t *testing.T) {
 		})
 	}
 }
+
+func TestCanBeatQueenHeartsIsUnbeatable(t *testing.T) {
+	// Дама♥ is the highest card (R-3.7): nothing beats it — not King♥/Ace♥, not
+	// a trump. (It only ever tops a con transiently during a Middle Ш-2 window.)
+	for _, c := range []Card{{Hearts, King}, {Hearts, Ace}, {Diamonds, Ace}, {Spades, Ace}} {
+		require.Falsef(t, CanBeat(Card{Hearts, Queen}, c), "%v must not beat Дама♥", c)
+	}
+}
