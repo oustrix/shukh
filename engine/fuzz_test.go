@@ -1,7 +1,6 @@
 package engine_test
 
 import (
-	"fmt"
 	"math/rand/v2"
 	"testing"
 
@@ -113,14 +112,15 @@ func TestFuzzMiddleGamesTerminate(t *testing.T) {
 		for s.Phase != engine.Finished {
 			require.Lessf(t, steps, maxSteps, "seed %d: game did not terminate in %d steps", seed, maxSteps)
 
-			// Gather legal actions across all seats (dedup identical actions).
+			// Gather legal actions across all seats (dedup identical actions). Every
+			// Action variant is a plain comparable struct, so the interface value is
+			// its own dedup key.
 			var pool []engine.Action
-			seen := map[string]bool{}
+			seen := map[engine.Action]bool{}
 			for i := 0; i < np; i++ {
 				for _, a := range engine.LegalActions(s, engine.SeatID(i)) {
-					k := fmt.Sprintf("%T%v", a, a)
-					if !seen[k] {
-						seen[k] = true
+					if !seen[a] {
+						seen[a] = true
 						pool = append(pool, a)
 					}
 				}

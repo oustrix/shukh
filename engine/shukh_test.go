@@ -47,7 +47,7 @@ func TestApplyMiddleQueenZahodSettledByNextMove(t *testing.T) {
 
 	ns2, _, err := Apply(ns, TakeBottomAndPass{})
 	require.NoError(t, err)
-	require.Nil(t, ns2.Unsettled)                              // settled
+	require.Nil(t, ns2.Unsettled) // settled
 	require.ElementsMatch(t, []Card{{Clubs, 8}, {Hearts, Queen}}, ns2.Hands[1])
 	// I-6-restored on the stable position is asserted by the Task 12 fuzz (partial-deck unit states don't satisfy I-1).
 }
@@ -65,9 +65,9 @@ func TestApplyClaimShukhReversesQueenZahodAndSkips(t *testing.T) {
 	ns2, events, err := Apply(ns, ClaimShukh{Target: 0, Code: Sh2})
 	require.NoError(t, err)
 	require.Nil(t, ns2.Unsettled)
-	require.Empty(t, ns2.Table)                                 // reversed off the table
+	require.Empty(t, ns2.Table) // reversed off the table
 	require.ElementsMatch(t, []Card{{Hearts, Queen}, {Spades, 7}}, ns2.Hands[0])
-	require.Equal(t, SeatID(1), ns2.Turn)                       // seat 0 skipped (Ш-2)
+	require.Equal(t, SeatID(1), ns2.Turn) // seat 0 skipped (Ш-2)
 	require.Contains(t, events, ActionReverted{Seat: 0})
 	require.Contains(t, events, ShukhAssessed{Offender: 0, Code: Sh2})
 	// I-6-restored on the stable position is asserted by the Task 12 fuzz (partial-deck unit states don't satisfy I-1).

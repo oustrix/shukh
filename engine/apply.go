@@ -96,18 +96,13 @@ func Apply(s State, a Action) (State, []Event, error) {
 			ns.settleTurn(eater, &events)
 		}
 	case ClaimShukh:
-		// Reverse: restore the pre-action snapshot (§15.3), then assess the ШУХ.
+		// Reverse: restore the pre-action snapshot (§15.3), then assess the ШУХ. The
+		// turn-skip (Ш-2/Ш-12), the 6(2)♥ discard obligation and the Endgame.Asked
+		// latch (заход-caught Ш-12, R-9.4.3) are all derived from the code inside
+		// assessShukh.
 		ns = s.Unsettled.Prev.clone()
 		events = append(events, ActionReverted{Seat: s.Unsettled.Seat})
-		skip := s.Unsettled.Code == Sh2 || s.Unsettled.Code == Sh12
-		thenDiscard := s.Unsettled.Code == Sh12
-		if s.Unsettled.Code == Sh12 {
-			// R-9.4.3: a заход-caught Ш-12 latches Endgame.Asked too (Prev had it
-			// false), closing the window so the offender cannot be asked again for a
-			// second Ш-12 before the forced DiscardWest. Sh2/Sh3 must not touch it.
-			ns.Endgame.Asked = true
-		}
-		ns.assessShukh(s.Unsettled.Seat, s.Unsettled.Code, skip, thenDiscard, &events)
+		ns.assessShukh(s.Unsettled.Seat, s.Unsettled.Code, &events)
 		before = handSizes(ns.Hands) // reconcile against the restored snapshot, not the post-offense sizes
 	case GiveShukhCard:
 		// A §8 payment: the current head payer moves one non-last card into the
@@ -140,7 +135,7 @@ func Apply(s State, a Action) (State, []Event, error) {
 		ns.OwesOneCard[act.Seat] = false
 		events = append(events, OneCardDeclared{Seat: act.Seat})
 	case AskCount:
-		ns.assessShukh(act.Target, Sh11, false, false, &events) // R-6.2, no extra effect
+		ns.assessShukh(act.Target, Sh11, &events) // R-6.2 (Sh11 has no skip/discard/latch)
 		// R-6.2/R-6.3: the count question discharges the «одна карта» obligation —
 		// otherwise the same undeclared single card could be re-penalized repeatedly.
 		// Payment goes to the Shukh zone, not Target's hand, so Target's hand size
@@ -155,9 +150,9 @@ func Apply(s State, a Action) (State, []Event, error) {
 		events = append(events, WestDiscarded{Seat: turn})
 		ns.settleTurn(ns.nextLive(turn), &events)
 	case AskAboutWest:
-		// isLegal now guarantees Target holds 6(2)♥ (R-9.4.2), so this always assesses.
-		ns.Endgame.Asked = true
-		ns.assessShukh(act.Target, Sh12, true, true, &events) // skip + discard
+		// isLegal now guarantees Target holds 6(2)♥ (R-9.4.2), so this always assesses;
+		// assessShukh latches Endgame.Asked for Ш-12 (R-9.4.2/R-9.4.3).
+		ns.assessShukh(act.Target, Sh12, &events)
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -195,24 +190,28 @@ func isLegal(s State, a Action) bool {
 		// pre-emptively ask a non-holder, burn the single global Asked flag, and
 		// dodge Ш-12 — no info leak in the 2-player endgame (you see your own hand).
 		return s.gatesClosed() && s.Endgame.Active && !s.Endgame.Asked && s.Live[act.Target] &&
-			slices.Contains(s.Hands[act.Target], Card{Suit: Hearts, Rank: s.Rules.LowestRank()})
+			slices.ContainsFunc(s.Hands[act.Target], s.Rules.IsLowestHeart)
 	default:
 		return slices.Contains(LegalActions(s, s.Turn), a)
 	}
 }
 
 // assessShukh confirms a ШУХ against offender (§8, R-8.5): it emits ShukhAssessed,
+// latches the endgame ask-window for codes that close it (Ш-12, R-9.4.2/R-9.4.3),
 // then either opens a payment gate (obligated givers exist) or applies the effect
-// immediately (nobody owes). skip requests the offender's turn-skip (Ш-2/Ш-12);
-// thenDiscardWest sets the Ш-12 6(2)♥ obligation.
-func (s *State) assessShukh(offender SeatID, code ShukhCode, skip, thenDiscardWest bool, events *[]Event) {
+// immediately (nobody owes). The turn-skip (Ш-2/Ш-12) and the 6(2)♥ discard
+// obligation (Ш-12) are derived from the code itself (ShukhCode methods).
+func (s *State) assessShukh(offender SeatID, code ShukhCode, events *[]Event) {
 	*events = append(*events, ShukhAssessed{Offender: offender, Code: code})
+	if code.latchesAsked() {
+		s.Endgame.Asked = true
+	}
 	owed := s.owedGivers(offender)
 	if len(owed) == 0 {
-		s.applyShukhEffect(offender, skip, thenDiscardWest, events)
+		s.applyShukhEffect(offender, code.skips(), code.obligesDiscard(), events)
 		return
 	}
-	s.Pending = &Payment{Offender: offender, Owed: owed, Skip: skip, ThenDiscardWest: thenDiscardWest}
+	s.Pending = &Payment{Offender: offender, Owed: owed, Skip: code.skips(), ThenDiscardWest: code.obligesDiscard()}
 }
 
 // owedGivers lists the seats obligated to pay the offender, clockwise from him:
@@ -229,7 +228,7 @@ func (s State) owedGivers(offender SeatID) []SeatID {
 }
 
 // applyShukhEffect applies a confirmed ШУХ's non-payment consequences (R-8.5):
-// mark the offender's Shukh pile takeable if the con is already over (P-4), skip
+// mark any non-empty Shukh pile takeable if the con is already over (P-4), skip
 // the offender's turn if required (Ш-2/Ш-12), and record the 6(2)♥ obligation
 // (Ш-12). The corrected position is then live for play.
 func (s *State) applyShukhEffect(offender SeatID, skip, thenDiscardWest bool, events *[]Event) {

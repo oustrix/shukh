@@ -49,10 +49,8 @@ func CheckInvariants(s State) error {
 	// stack — each card legally beats the one below it (⇒ I-7) — and Дама♥ never
 	// rests on the table. Literal I-6 (never the заходная card, R-3.7.2) is
 	// subsumed: R-3.7.1 makes Дама♥ close+sweep the con the instant it is played,
-	// so it never sits on a stable Table.
-	// I-6 + beat-stack oracle hold only on a STABLE position (§15.3): during an
-	// open Middle catch-window a Дама♥/6(2)♥ may transiently rest on the table.
-	// I-1 (card conservation, above) always holds.
+	// so it never sits on a stable Table. Gated on Unsettled == nil per the function
+	// doc — during a Middle catch-window a Дама♥/6(2)♥ may transiently rest here.
 	if s.Unsettled == nil {
 		for i, tc := range s.Table {
 			if IsQueenHearts(tc.Card) {

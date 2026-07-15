@@ -124,9 +124,9 @@ func TestClaimShukhSh12LatchesAsked(t *testing.T) {
 	require.NotNil(t, ns2.Pending)
 	ns3, _, err := Apply(ns2, GiveShukhCard{Card: Card{Clubs, 8}}) // seat 1's non-last card
 	require.NoError(t, err)
-	require.Nil(t, ns3.Pending)                                    // gate closed
-	require.True(t, ns3.Endgame.Asked)                             // latch persisted through payment
-	require.Contains(t, ns3.Hands[0], Card{Hearts, 6})            // offender still holds 6(2)♥ (no DiscardWest yet)
+	require.Nil(t, ns3.Pending)                        // gate closed
+	require.True(t, ns3.Endgame.Asked)                 // latch persisted through payment
+	require.Contains(t, ns3.Hands[0], Card{Hearts, 6}) // offender still holds 6(2)♥ (no DiscardWest yet)
 
 	// Now gatesClosed()==true, so this rejection is due to Asked==true alone — the
 	// fix's real guarantee: no second ask-triggered Ш-12 before the forced DiscardWest.

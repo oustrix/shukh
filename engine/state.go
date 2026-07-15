@@ -41,6 +41,21 @@ const (
 	Sh12 ShukhCode = 12 // эндшпиль: держит/использовал 6(2)♥ (R-9.4) — skip + discard
 )
 
+// The per-code effects of a confirmed ШУХ (§8) — the single source of truth
+// derived by assessShukh, rather than re-stated at each call site.
+
+// skips reports whether the ШУХ costs the offender a turn (Ш-2 Дама♥ заход
+// R-3.7.2; Ш-12 endgame 6(2)♥ R-9.4).
+func (c ShukhCode) skips() bool { return c == Sh2 || c == Sh12 }
+
+// obligesDiscard reports whether the offender must afterwards discard 6(2)♥
+// (Ш-12, R-9.4.3).
+func (c ShukhCode) obligesDiscard() bool { return c == Sh12 }
+
+// latchesAsked reports whether assessing the ШУХ closes the endgame «спросили о
+// 6(2)♥» window (Ш-12, R-9.4.2/R-9.4.3), preventing a second ask-triggered Ш-12.
+func (c ShukhCode) latchesAsked() bool { return c == Sh12 }
+
 // Unsettled is an open Middle catch-window (§6.1/§15.3): a разрешённо-нелегальное
 // action has been applied but not yet settled. Prev is the snapshot of State from
 // BEFORE that action — reversing the ШУХ is exactly restoring it (no per-action
@@ -116,9 +131,9 @@ func (c Config) Validate() error {
 }
 
 // State is the full authoritative game state (spec §2, invariant I-1: every card
-// is in exactly one zone at all times). Iteration 4 adds the ШУХ-penalty-core
-// fields (Endgame, Pending, Unsettled, OwesOneCard, ShukhTakeable, §15.2); the
-// behavior that populates and consumes them lands in later iteration-4 tasks.
+// is in exactly one zone at all times). The ШУХ-penalty-core fields (Endgame,
+// Pending, Unsettled, OwesOneCard, ShukhTakeable, §15.2) are populated and consumed
+// by Apply/LegalActions/isLegal for the Guard+Middle enforcement modes.
 type State struct {
 	Rules RuleSet         // deck size + §12 variant flags
 	Mode  EnforcementMode // Guard | Middle (Culture later)

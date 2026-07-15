@@ -33,8 +33,7 @@ type GiveShukhCard struct{ Card Card }
 
 // TakeShukhCards lifts Seat's set-aside Shukh pile into his hand (R-8.3), allowed
 // only once the con it was laid in has ended (State.ShukhTakeable[Seat]). Taking
-// it early is Ш-3 (Task 7). Carries the actor seat (P-1); a player takes only his
-// own pile.
+// it early is Ш-3. Carries the actor seat (P-1); a player takes only his own pile.
 type TakeShukhCards struct{ Seat SeatID }
 
 // DeclareOneCard announces «Одна карта!» for Seat, clearing its one-card

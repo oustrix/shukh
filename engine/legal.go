@@ -2,10 +2,12 @@ package engine
 
 import "slices"
 
-// LegalActions lists the actions `seat` may take right now in Guard (§14.2). Only
-// the player to move has actions this iteration (social/ШУХ actions arrive in
-// iteration 4); other seats and a finished game yield nil. It is the executable
-// specification of §3/§5 that Apply validates against.
+// LegalActions lists the actions `seat` may take right now (§14.2/§15). It is the
+// executable specification of §3/§5/§7–§9 that Apply validates against. `seat` need
+// not be s.Turn: while a payment gate or catch-window is open the actor is the head
+// payer resp. any live claimer, and social/ШУХ actions (claim, ask, declare, take)
+// are offered out of turn by state, not by whose turn it is. A finished game and a
+// seat with nothing to do yield nil.
 func LegalActions(s State, seat SeatID) []Action {
 	if s.Phase == Finished {
 		return nil
@@ -54,12 +56,11 @@ func LegalActions(s State, seat SeatID) []Action {
 		}
 	}
 	if s.Endgame.Active && !s.Endgame.Asked {
-		west := Card{Suit: Hearts, Rank: s.Rules.LowestRank()} // 6(2)♥
 		for _, t := range s.Seats {
 			// R-9.4.2: only the actual holder is a legal target — otherwise the
 			// holder could pre-emptively ask a non-holder to burn the single global
 			// Asked flag and dodge Ш-12. No info leak in the 2-player endgame.
-			if t != seat && s.Live[t] && slices.Contains(s.Hands[t], west) {
+			if t != seat && s.Live[t] && slices.ContainsFunc(s.Hands[t], s.Rules.IsLowestHeart) {
 				social = append(social, AskAboutWest{Target: t})
 			}
 		}
@@ -80,8 +81,7 @@ func turnActions(s State, seat SeatID) []Action {
 	if len(s.Table) == 0 {
 		// Заход: any card but Дама♥ (R-5.2). A lone Дама♥ yields nil — the Guard
 		// skip (§14.4) keeps Turn from ever resting here.
-		west := Card{Suit: Hearts, Rank: s.Rules.LowestRank()} // 6(2)♥
-		holdsWest := slices.Contains(hand, west)
+		holdsWest := slices.ContainsFunc(hand, s.Rules.IsLowestHeart) // 6(2)♥
 		// Post-Ш-12 obligation: the holder must DiscardWest before anything else.
 		if s.Endgame.MustDiscard && holdsWest {
 			return []Action{DiscardWest{}}
