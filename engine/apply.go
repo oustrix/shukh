@@ -145,6 +145,7 @@ func (s State) forcedQueenSkip(seat SeatID) bool {
 // one seat can qualify (a single Дама♥ exists), so this skips at most once.
 func (s *State) settleTurn(candidate SeatID, events *[]Event) {
 	seat := candidate
+	// TODO(iter4): gate on s.Mode == Guard — Middle/Culture allow the Дама♥ заход and catch it as Ш-2 instead of skipping.
 	for s.forcedQueenSkip(seat) {
 		*events = append(*events, TurnSkipped{Seat: seat})
 		seat = s.nextLive(seat)

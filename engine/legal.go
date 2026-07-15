@@ -17,6 +17,7 @@ func LegalActions(s State, seat SeatID) []Action {
 		// skip (§14.4) keeps Turn from ever resting here.
 		var out []Action
 		for _, c := range hand {
+			// TODO(iter4): Guard blocks the Дама♥ заход (R-3.7.2); Middle/Culture allow it and catch as Ш-2.
 			if !IsQueenHearts(c) {
 				out = append(out, PlayCard{Card: c})
 			}
@@ -38,11 +39,8 @@ func LegalActions(s State, seat SeatID) []Action {
 		}
 	}
 	out = append(out, TakeBottomAndPass{}) // R-5.3b: always available on a non-empty con
-	if s.Rules.IsSecondLowestHeart(s.Table[0].Card) {
-		west := Card{Suit: Hearts, Rank: s.Rules.LowestRank()}
-		if slices.Contains(hand, west) {
-			out = append(out, PodkladkaWest{}) // R-5.3c/R-3.6.2
-		}
+	if s.Rules.IsSecondLowestHeart(s.Table[0].Card) && slices.ContainsFunc(hand, s.Rules.IsLowestHeart) {
+		out = append(out, PodkladkaWest{}) // R-5.3c/R-3.6.2
 	}
 	return out
 }

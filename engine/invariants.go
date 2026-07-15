@@ -7,7 +7,7 @@ import "fmt"
 // in exactly one zone — Talon, a Hand, Table, Discard, or a Shukh pile — with no
 // missing, foreign, or duplicated cards; plus the con's structural shape — I-6
 // (Дама♥ never rests on the table) and the beat-stack oracle (⇒ I-7, over a ♠ only
-// a higher ♠). Later iterations add I-2/I-4/I-5.
+// a higher ♠). Later iterations add I-2/I-3/I-4/I-5.
 //
 // It returns a typed error describing the first violation, or nil. Callers run it
 // after every Apply that yields a stable position (spec §10).
