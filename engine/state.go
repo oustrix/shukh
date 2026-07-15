@@ -96,11 +96,3 @@ type State struct {
 // Event is a state-transition fact emitted for higher layers (animations, logs,
 // spec §9). It is a sealed interface — only engine types implement it.
 type Event interface{ isEvent() }
-
-// GameStarted is emitted by NewGame once dealing is complete; Turn is the seat
-// that opens the first con (holder of 9♦, R-5.1).
-type GameStarted struct {
-	Turn SeatID
-}
-
-func (GameStarted) isEvent() {}
