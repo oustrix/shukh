@@ -54,10 +54,32 @@ func Apply(s State, a Action) (State, []Event, error) {
 		if ns.Phase != Finished {
 			ns.settleTurn(ns.nextLive(turn), &events)
 		}
+	case PodkladkaWest:
+		west := Card{Suit: Hearts, Rank: ns.Rules.LowestRank()} // 6(2)♥
+		ns.Hands[turn] = removeCard(ns.Hands[turn], west)
+		eater := ns.nextLive(turn)
+		eaten := make([]Card, 0, len(ns.Table)+1)
+		eaten = append(eaten, west) // tucked under the bottom (R-3.6.2)
+		for _, tc := range ns.Table {
+			eaten = append(eaten, tc.Card)
+		}
+		ns.Hands[eater] = append(ns.Hands[eater], eaten...)
+		ns.Table = nil
+		events = append(events,
+			PodkladkaPlayed{Seat: turn, Eater: eater},
+			CardsTaken{Seat: eater, Cards: eaten},
+		)
+		// The table is emptied (eaten): any handless player whose cards were in it
+		// exits; the eater cannot (it just gained the con). Eater opens (R-5.7.1).
+		ns.resolveExits(ns.seatsFrom(turn), &events)
+		if ns.Phase != Finished {
+			ns.settleTurn(eater, &events)
+		}
 	default:
-		// PodkladkaWest is legal per LegalActions in many states, but its Apply
-		// case lands in Task 8. Until then, reject rather than silently no-op (a
-		// legal move must never look applied when nothing changed).
+		// All turn-actions produced by LegalActions are wired above; this is a
+		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
+		// a future action type not yet handled here) — reject rather than
+		// silently no-op.
 		return s, nil, &IllegalAction{Code: "not_implemented", Rule: "§5"}
 	}
 	return ns, events, nil

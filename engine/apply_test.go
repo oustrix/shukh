@@ -139,23 +139,26 @@ func TestApplyRejectsIllegal(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestApplyRejectsUnimplementedActions(t *testing.T) {
-	// PodkladkaWest is legal per LegalActions but not yet wired into Apply
-	// (Task 8). Until then Apply must reject it with a typed error, never
-	// silently no-op. (This test is superseded when that task lands.)
+func TestApplyPodkladkaWest(t *testing.T) {
+	// 3 live. Con bottom is 7♥ (by seat 2); seat 0 tucks 6♥ under → whole con
+	// (6♥ + 7♥) goes to the next live seat (1) who opens next (R-5.7.1). Seat 0
+	// shed its last card but seat 1 ate the con, so nobody's cards remain on an
+	// (now empty) table; seat 0 becomes handless with no card in con → exits.
 	s := playing(map[SeatID][]Card{
 		0: {{Hearts, 6}},
 		1: {{Clubs, 8}},
-	}, []TableCard{{Card: Card{Hearts, 7}, By: 1}}, 0)
+		2: {{Diamonds, 9}},
+	}, []TableCard{{Card: Card{Hearts, 7}, By: 2}}, 0)
 
-	for _, a := range []Action{PodkladkaWest{}} {
-		ns, events, err := Apply(s, a)
-		var illegal *IllegalAction
-		require.ErrorAs(t, err, &illegal, "%T must be rejected, not silently applied", a)
-		require.Nil(t, events)
-		require.Empty(t, ns.Table[:0]) // input untouched: table still holds the 7♥
-	}
-	require.Len(t, s.Table, 1) // Apply did not mutate the input
+	ns, events, err := Apply(s, PodkladkaWest{})
+	require.NoError(t, err)
+	require.Empty(t, ns.Table)
+	require.Empty(t, ns.Discard) // eaten, not swept
+	require.ElementsMatch(t, []Card{{Clubs, 8}, {Hearts, 6}, {Hearts, 7}}, ns.Hands[1])
+	require.False(t, ns.Live[0]) // shed last card, exits
+	require.Equal(t, SeatID(1), ns.Turn)
+	require.Contains(t, events, PodkladkaPlayed{Seat: 0, Eater: 1})
+	require.Contains(t, events, CardsTaken{Seat: 1, Cards: []Card{{Hearts, 6}, {Hearts, 7}}})
 }
 
 func TestApplyTakeBottom(t *testing.T) {

@@ -45,10 +45,18 @@ type CardsTaken struct {
 	Cards []Card
 }
 
-func (GameStarted) isEvent()    {}
-func (CardPlayed) isEvent()     {}
-func (ConClosed) isEvent()      {}
-func (ConSwept) isEvent()       {}
-func (PlayerFinished) isEvent() {}
-func (GameFinished) isEvent()   {}
-func (CardsTaken) isEvent()     {}
+// PodkladkaPlayed is emitted for the западло move (R-3.6.2): Seat tucked 6(2)♥
+// under the con and Eater received the whole con.
+type PodkladkaPlayed struct {
+	Seat  SeatID
+	Eater SeatID
+}
+
+func (GameStarted) isEvent()     {}
+func (CardPlayed) isEvent()      {}
+func (ConClosed) isEvent()       {}
+func (ConSwept) isEvent()        {}
+func (PlayerFinished) isEvent()  {}
+func (GameFinished) isEvent()    {}
+func (CardsTaken) isEvent()      {}
+func (PodkladkaPlayed) isEvent() {}
