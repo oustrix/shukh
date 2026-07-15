@@ -144,17 +144,12 @@ func NewGame(cfg Config, deck []Card) (State, []Event, error) {
 // validateDeck reports whether deck is exactly the full deck for rs: the right
 // size, no foreign cards, no duplicates (I-1 precondition for NewGame).
 func validateDeck(rs RuleSet, deck []Card) error {
-	full := NewDeck(rs)
-	if len(deck) != len(full) {
-		return fmt.Errorf("engine: deck has %d cards, want %d for a %d-card game", len(deck), len(full), rs.DeckSize)
-	}
-	want := make(map[Card]bool, len(full))
-	for _, c := range full {
-		want[c] = true
+	if n := rs.deckCount(); len(deck) != n {
+		return fmt.Errorf("engine: deck has %d cards, want %d for a %d-card game", len(deck), n, rs.DeckSize)
 	}
 	seen := make(map[Card]bool, len(deck))
 	for _, c := range deck {
-		if !want[c] {
+		if !rs.inDeck(c) {
 			return fmt.Errorf("engine: deck contains %v, not part of a %d-card deck", c, rs.DeckSize)
 		}
 		if seen[c] {

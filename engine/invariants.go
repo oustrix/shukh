@@ -10,18 +10,11 @@ import "fmt"
 // It returns a typed error describing the first violation, or nil. Callers run it
 // after every Apply that yields a stable position (spec §10).
 func CheckInvariants(s State) error {
-	full := NewDeck(s.Rules)
-	want := make(map[Card]bool, len(full))
-	for _, c := range full {
-		want[c] = true
-	}
-
-	seen := make(map[Card]int, len(full))
-	total := 0
+	rs := s.Rules
+	seen := make(map[Card]int, rs.deckCount())
 	count := func(cs []Card) {
 		for _, c := range cs {
 			seen[c]++
-			total++
 		}
 	}
 	count(s.Talon)
@@ -35,15 +28,17 @@ func CheckInvariants(s State) error {
 	}
 
 	for c, k := range seen {
-		if !want[c] {
-			return fmt.Errorf("engine: I-1 violated: card %v is not part of a %d-card deck", c, s.Rules.DeckSize)
+		if !rs.inDeck(c) {
+			return fmt.Errorf("engine: I-1 violated: card %v is not part of a %d-card deck", c, rs.DeckSize)
 		}
 		if k != 1 {
 			return fmt.Errorf("engine: I-1 violated: card %v appears %d times (want 1)", c, k)
 		}
 	}
-	if total != len(full) {
-		return fmt.Errorf("engine: I-1 violated: %d cards present across zones, want %d", total, len(full))
+	// Every seen card is now distinct (k==1) and in-deck, so the distinct count
+	// equals the total; if it matches the deck size, no card is missing.
+	if len(seen) != rs.deckCount() {
+		return fmt.Errorf("engine: I-1 violated: %d distinct cards present across zones, want %d", len(seen), rs.deckCount())
 	}
 	return nil
 }
