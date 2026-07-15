@@ -4,7 +4,7 @@
 
 **Goal:** Implement `engine.View(state, seat)` — the last missing Layer‑0 public API method — a pure per‑seat projection of game state that structurally cannot leak hidden cards.
 
-**Architecture:** New `engine/view.go` defines value types `View` and `OpponentView` plus a pure function `View(s State, seat SeatID) View`. It follows the existing engine convention: `State` by value, no panics, no I/O. Own hand is exposed in full; opponents are counts only (no card field exists); public zones (con, discard size, talon size) and outcome (live/finish) are copied out so callers cannot mutate `State` internals. Reuses the existing unexported helper `seatsFrom` for clockwise opponent ordering.
+**Architecture:** New `engine/view.go` defines value types `SeatView` and `OpponentView` plus a pure function `View(s State, seat SeatID) SeatView` (a type and function cannot share a name in one Go package, so the type is `SeatView` and the API verb stays `View`). It follows the existing engine convention: `State` by value, no panics, no I/O. Own hand is exposed in full; opponents are counts only (no card field exists); public zones (con, discard size, talon size) and outcome (live/finish) are copied out so callers cannot mutate `State` internals. Reuses the existing unexported helper `seatsFrom` for clockwise opponent ordering.
 
 **Tech Stack:** Go 1.26, `github.com/stretchr/testify/require` for tests, `slices` stdlib for copies.
 
@@ -22,7 +22,7 @@
 
 ## File Structure
 
-- **Create `engine/view.go`** — `View`, `OpponentView` types + `View(s State, seat SeatID) View`. One responsibility: read‑only per‑seat projection. Does not import anything beyond `slices` (stdlib).
+- **Create `engine/view.go`** — `SeatView`, `OpponentView` types + `View(s State, seat SeatID) SeatView`. One responsibility: read‑only per‑seat projection. Imports only `maps` + `slices` (stdlib).
 - **Create `engine/view_test.go`** — `package engine_test`; all View tests.
 
 Reused existing (unexported, same package — accessible from `view.go`):
