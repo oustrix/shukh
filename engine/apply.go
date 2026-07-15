@@ -132,8 +132,6 @@ func (s State) nextLive(after SeatID) SeatID {
 	return after
 }
 
-// settleTurn points Turn at candidate. (Task 9 upgrades it to skip the Guard
-// lone-Дама♥ opener, §14.4.)
 // forcedQueenSkip reports the Guard-only lone-Дама♥ opener case (§14.4): the con
 // is empty and seat's only card is Дама♥, so its sole "move" would be the
 // forbidden Дама♥ заход (R-3.7.2). Such a turn is skipped in Guard.
