@@ -1,11 +1,14 @@
 package engine
 
-import "slices"
+import (
+	"maps"
+	"slices"
+)
 
-// View is the per‑seat projection of game state (D‑9): exactly what one player
-// may see. Opponents' hands are represented by counts only — there is no card
-// field on OpponentView, so a hidden card is structurally unrepresentable.
-type View struct {
+// SeatView is the per‑seat projection of game state (D‑9): exactly what one
+// player may see. Opponents' hands are represented by counts only — there is no
+// card field on OpponentView, so a hidden card is structurally unrepresentable.
+type SeatView struct {
 	Rules RuleSet
 	Mode  EnforcementMode
 	Phase Phase // Playing | Finished
@@ -35,14 +38,14 @@ type OpponentView struct {
 	Live         bool
 }
 
-// NewView builds the projection of s for seat (D‑9). It is pure and does not mutate
+// View builds the projection of s for seat (D‑9). It is pure and does not mutate
 // s. Unlike LegalActions it is not turn‑gated: every valid seat can always see
 // its own hand and the public state. State is taken by value, matching
 // LegalActions. Precondition: seat is one of s.Seats (Layer 1 guarantees this);
-// an unknown seat yields a well‑formed but meaningless View (empty own hand).
-func NewView(s State, seat SeatID) View {
+// an unknown seat yields a well‑formed but meaningless SeatView (empty own hand).
+func View(s State, seat SeatID) SeatView {
 	opps := s.seatsFrom(seat) // clockwise from seat, inclusive
-	v := View{
+	v := SeatView{
 		Rules:        s.Rules,
 		Mode:         s.Mode,
 		Phase:        s.Phase,
@@ -64,8 +67,6 @@ func NewView(s State, seat SeatID) View {
 			Live:         s.Live[k],
 		})
 	}
-	for k, alive := range s.Live {
-		v.Live[k] = alive
-	}
+	maps.Copy(v.Live, s.Live)
 	return v
 }

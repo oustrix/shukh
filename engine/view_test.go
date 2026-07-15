@@ -31,7 +31,7 @@ func TestViewProjectsSelfAndOpponents(t *testing.T) {
 	st := viewGame(t)
 	seat := st.Turn
 
-	v := engine.NewView(st, seat)
+	v := engine.View(st, seat)
 
 	// Config + identity are public.
 	require.Equal(t, st.Rules, v.Rules)
