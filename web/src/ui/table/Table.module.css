@@ -1,0 +1,54 @@
+.table {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: var(--gap);
+  min-height: 100vh;
+  padding: 16px;
+  background: radial-gradient(circle at 50% 40%, var(--felt), var(--felt-dark));
+}
+.opponents {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.seat {
+  text-align: center;
+  min-width: 84px;
+}
+.seatName {
+  font-weight: 600;
+}
+.seatCount {
+  opacity: 0.85;
+}
+.shukhBadge {
+  margin-top: 4px;
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: var(--radius);
+  background: var(--card-back);
+  color: var(--text);
+  font-size: 0.8em;
+}
+.con {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  min-height: 90px;
+}
+.empty {
+  opacity: 0.6;
+}
+.hand {
+  display: flex;
+  justify-content: center;
+  gap: var(--gap);
+  flex-wrap: wrap;
+}
+.actionBar {
+  display: flex;
+  justify-content: center;
+  gap: var(--gap);
+}
