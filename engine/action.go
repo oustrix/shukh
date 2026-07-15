@@ -26,7 +26,13 @@ type ClaimShukh struct {
 	Code   ShukhCode
 }
 
+// GiveShukhCard pays one card into the offender's Shukh zone during a §8 payment
+// gate. It applies as the current payer, State.Pending.Owed[0] (P-1/P-3); Card
+// must be one of that payer's non-last cards (R-8.1.1/I-2).
+type GiveShukhCard struct{ Card Card }
+
 func (PlayCard) isAction()          {}
 func (TakeBottomAndPass) isAction() {}
 func (PodkladkaWest) isAction()     {}
 func (ClaimShukh) isAction()        {}
+func (GiveShukhCard) isAction()     {}

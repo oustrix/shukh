@@ -84,3 +84,75 @@ func TestApplyClaimShukhRejectedWithoutWindow(t *testing.T) {
 	_, _, err = Apply(ns, ClaimShukh{Target: 0, Code: Sh3})
 	require.Error(t, err)
 }
+
+func TestApplyShukhPaymentGate(t *testing.T) {
+	// 3 live. Seat 0 commits Ш-2 (Дама♥ заход) and is caught. Owed givers are the
+	// live seats ≠ 0 with ≥2 cards, clockwise from 0: seat 1 (2 cards) and seat 2
+	// (2 cards). Each gives one non-last card into seat 0's Shukh zone; then the
+	// skip applies (turn → seat 1).
+	s := middle(map[SeatID][]Card{
+		0: {{Hearts, Queen}},
+		1: {{Clubs, 8}, {Clubs, 9}},
+		2: {{Spades, 10}, {Spades, 11}},
+	}, nil, 0)
+	ns, _, err := Apply(s, PlayCard{Card{Hearts, Queen}})
+	require.NoError(t, err)
+	ns, _, err = Apply(ns, ClaimShukh{Target: 0, Code: Sh2})
+	require.NoError(t, err)
+
+	// Payment gate open: only seat 1 (head of Owed) may give, only non-last cards.
+	require.NotNil(t, ns.Pending)
+	require.Equal(t, []SeatID{1, 2}, ns.Pending.Owed)
+	require.ElementsMatch(t, []Action{
+		GiveShukhCard{Card{Clubs, 8}}, GiveShukhCard{Card{Clubs, 9}},
+	}, LegalActions(ns, 1))
+	require.Nil(t, LegalActions(ns, 0)) // offender does not pay
+	require.Nil(t, LegalActions(ns, 2)) // not the head payer yet
+
+	// Seat 1 pays 8♣.
+	ns, ev1, err := Apply(ns, GiveShukhCard{Card{Clubs, 8}})
+	require.NoError(t, err)
+	require.Contains(t, ev1, ShukhPaid{Offender: 0, From: 1, Card: Card{Clubs, 8}})
+	require.Equal(t, []SeatID{2}, ns.Pending.Owed)
+	require.Equal(t, []Action{GiveShukhCard{Card{Spades, 10}}, GiveShukhCard{Card{Spades, 11}}}, LegalActions(ns, 2))
+
+	// Seat 2 pays 10♠ → gate closes, effect (skip) applies.
+	ns, _, err = Apply(ns, GiveShukhCard{Card{Spades, 10}})
+	require.NoError(t, err)
+	require.Nil(t, ns.Pending)
+	require.ElementsMatch(t, []Card{{Clubs, 8}, {Spades, 10}}, ns.Shukh[0]) // I-3: in Shukh, not hand
+	require.ElementsMatch(t, []Card{{Hearts, Queen}}, ns.Hands[0])          // hand unchanged by payment
+	require.Equal(t, SeatID(1), ns.Turn)                                    // Ш-2 skip past seat 0
+	require.True(t, ns.ShukhTakeable[0])                                    // con already over (empty table)
+	// (No CheckInvariants — partial-deck unit state does not satisfy I-1; I-2/I-3
+	// are asserted structurally above, ns.Shukh[0] holds the paid cards, hands hold
+	// the rest. Full I-1/I-3 conservation across the Shukh zone is covered by fuzz.)
+}
+
+func TestApplyShukhOneCardPlayerDoesNotPay(t *testing.T) {
+	// I-2 (R-8.1.1): a player holding exactly one card never pays. Seat 1 has 1
+	// card → excluded from Owed; only seat 2 pays.
+	s := middle(map[SeatID][]Card{
+		0: {{Hearts, Queen}},
+		1: {{Clubs, 8}},
+		2: {{Spades, 10}, {Spades, 11}},
+	}, nil, 0)
+	ns, _, _ := Apply(s, PlayCard{Card{Hearts, Queen}})
+	ns, _, err := Apply(ns, ClaimShukh{Target: 0, Code: Sh2})
+	require.NoError(t, err)
+	require.Equal(t, []SeatID{2}, ns.Pending.Owed) // seat 1 (1 card) excluded
+}
+
+func TestApplyShukhNobodyOwesAppliesImmediately(t *testing.T) {
+	// 2 live, opponent has 1 card → nobody owes → effect applies with no gate.
+	s := middle(map[SeatID][]Card{
+		0: {{Hearts, Queen}},
+		1: {{Clubs, 8}},
+	}, nil, 0)
+	ns, _, _ := Apply(s, PlayCard{Card{Hearts, Queen}})
+	ns, _, err := Apply(ns, ClaimShukh{Target: 0, Code: Sh2})
+	require.NoError(t, err)
+	require.Nil(t, ns.Pending)
+	require.Empty(t, ns.Shukh[0])
+	require.Equal(t, SeatID(1), ns.Turn) // skip applied directly
+}

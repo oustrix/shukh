@@ -72,8 +72,17 @@ type ActionReverted struct {
 	Seat SeatID
 }
 
+// ShukhPaid is emitted when a payer gives one card into the offender's Shukh zone
+// (R-8.1/R-8.2); From is the giver.
+type ShukhPaid struct {
+	Offender SeatID
+	From     SeatID
+	Card     Card
+}
+
 func (ShukhAssessed) isEvent()  {}
 func (ActionReverted) isEvent() {}
+func (ShukhPaid) isEvent()      {}
 
 func (GameStarted) isEvent()     {}
 func (CardPlayed) isEvent()      {}

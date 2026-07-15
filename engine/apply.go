@@ -87,6 +87,21 @@ func Apply(s State, a Action) (State, []Event, error) {
 		ns = s.Unsettled.Prev.clone()
 		events = append(events, ActionReverted{Seat: s.Unsettled.Seat})
 		ns.assessShukh(s.Unsettled.Seat, s.Unsettled.Code, s.Unsettled.Code == Sh2, false, &events)
+	case GiveShukhCard:
+		// A §8 payment: the current head payer moves one non-last card into the
+		// offender's Shukh zone (I-3, not the offender's hand). When the last
+		// obligated payer has paid, the deferred effect (skip/§9.4 obligation)
+		// finally applies and the gate closes.
+		p := ns.Pending
+		giver := p.Owed[0]
+		ns.Hands[giver] = removeCard(ns.Hands[giver], act.Card)
+		ns.Shukh[p.Offender] = append(ns.Shukh[p.Offender], act.Card) // I-3: Shukh, not hand
+		events = append(events, ShukhPaid{Offender: p.Offender, From: giver, Card: act.Card})
+		p.Owed = p.Owed[1:]
+		if len(p.Owed) == 0 {
+			ns.applyShukhEffect(p.Offender, p.Skip, p.ThenDiscardWest, &events)
+			ns.Pending = nil
+		}
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -105,6 +120,11 @@ func isLegal(s State, a Action) bool {
 	switch act := a.(type) {
 	case ClaimShukh:
 		return s.Unsettled != nil && s.Unsettled.Seat == act.Target && s.Unsettled.Code == act.Code
+	case GiveShukhCard:
+		if s.Pending == nil || len(s.Pending.Owed) == 0 {
+			return false
+		}
+		return slices.Contains(LegalActions(s, s.Pending.Owed[0]), a)
 	default:
 		return slices.Contains(LegalActions(s, s.Turn), a)
 	}
@@ -116,8 +136,25 @@ func isLegal(s State, a Action) bool {
 // thenDiscardWest sets the Ш-12 6(2)♥ obligation.
 func (s *State) assessShukh(offender SeatID, code ShukhCode, skip, thenDiscardWest bool, events *[]Event) {
 	*events = append(*events, ShukhAssessed{Offender: offender, Code: code})
-	// Task 5 opens the payment gate here; for now apply the effect directly.
-	s.applyShukhEffect(offender, skip, thenDiscardWest, events)
+	owed := s.owedGivers(offender)
+	if len(owed) == 0 {
+		s.applyShukhEffect(offender, skip, thenDiscardWest, events)
+		return
+	}
+	s.Pending = &Payment{Offender: offender, Owed: owed, Skip: skip, ThenDiscardWest: thenDiscardWest}
+}
+
+// owedGivers lists the seats obligated to pay the offender, clockwise from him:
+// live, not the offender, holding ≥2 cards (R-8.1/R-8.1.1/I-2 — the last card is
+// never given, a 1-card player does not pay).
+func (s State) owedGivers(offender SeatID) []SeatID {
+	var owed []SeatID
+	for _, seat := range s.seatsFrom(offender) {
+		if seat != offender && s.Live[seat] && len(s.Hands[seat]) >= 2 {
+			owed = append(owed, seat)
+		}
+	}
+	return owed
 }
 
 // applyShukhEffect applies a confirmed ШУХ's non-payment consequences (R-8.5):

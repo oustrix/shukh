@@ -10,6 +10,22 @@ func LegalActions(s State, seat SeatID) []Action {
 	if s.Phase == Finished {
 		return nil
 	}
+	// A §8 payment gate: only the head payer acts, offering each of his non-last
+	// cards (R-8.1.1/I-2). All other seats have nothing to do until it closes.
+	if s.Pending != nil {
+		if len(s.Pending.Owed) == 0 || seat != s.Pending.Owed[0] {
+			return nil
+		}
+		hand := s.Hands[seat]
+		if len(hand) < 2 {
+			return nil // cannot give the last card
+		}
+		out := make([]Action, 0, len(hand))
+		for _, c := range hand {
+			out = append(out, GiveShukhCard{Card: c})
+		}
+		return out
+	}
 	// An open Middle catch-window: any live seat ≠ offender may claim it; the
 	// offender's next-in-turn player may instead settle it with a normal move.
 	if s.Unsettled != nil {
