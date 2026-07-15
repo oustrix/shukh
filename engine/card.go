@@ -3,7 +3,7 @@
 // and transport live at higher layers (see docs/architecture.md, D-6/D-7).
 package engine
 
-import "fmt"
+import "strconv"
 
 // Suit is a card suit. Diamonds (♦) is always trump (R-2.5).
 type Suit uint8
@@ -58,7 +58,7 @@ func (r Rank) String() string {
 	case Ace:
 		return "A"
 	default:
-		return fmt.Sprintf("%d", uint8(r))
+		return strconv.Itoa(int(r))
 	}
 }
 

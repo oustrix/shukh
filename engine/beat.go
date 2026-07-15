@@ -20,9 +20,9 @@ func CanBeat(top, c Card) bool {
 	case Spades:
 		return c.Suit == Spades && c.Rank > top.Rank // R-3.3, I-7
 	case Diamonds:
-		return c.Suit == Diamonds && c.Rank > top.Rank // R-3.1
+		return c.Suit.IsTrump() && c.Rank > top.Rank // R-3.1
 	default: // Hearts or Clubs
-		if c.Suit == Diamonds {
+		if c.Suit.IsTrump() {
 			return true // R-3.2 — trump of any rank beats a non-spade non-trump
 		}
 		return c.Suit == top.Suit && c.Rank > top.Rank // R-3.1
