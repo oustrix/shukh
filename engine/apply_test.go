@@ -196,3 +196,20 @@ func TestApplyTakeBottomExitsOwnerAndEndsGame(t *testing.T) {
 	require.Contains(t, events, PlayerFinished{Seat: 1, Place: 1})
 	require.Contains(t, events, GameFinished{Finish: []SeatID{1, 0}})
 }
+
+func TestApplyGuardSkipsLoneQueenOpener(t *testing.T) {
+	// 2 live. Con has 8♠ (by seat 1). Seat 0 takes it → con empty, turn would pass
+	// to seat 1, whose only card is Дама♥ → its sole "move" is the forbidden
+	// заход. Guard skips seat 1 (§14.4) back to seat 0, who opens. TurnSkipped fires.
+	s := playing(map[SeatID][]Card{
+		0: {{Diamonds, 6}},
+		1: {{Hearts, Queen}},
+	}, []TableCard{{Card: Card{Spades, 8}, By: 1}}, 0)
+
+	ns, events, err := Apply(s, TakeBottomAndPass{})
+	require.NoError(t, err)
+	require.Equal(t, Playing, ns.Phase)
+	require.Equal(t, SeatID(0), ns.Turn) // seat 1 skipped, back to 0
+	require.Contains(t, events, TurnSkipped{Seat: 1})
+	require.NotEmpty(t, LegalActions(ns, ns.Turn)) // Turn is always resolvable
+}

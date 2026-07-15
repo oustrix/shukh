@@ -52,6 +52,13 @@ type PodkladkaPlayed struct {
 	Eater SeatID
 }
 
+// TurnSkipped is emitted when a Guard turn is skipped because the seat's only
+// possible move is the forbidden lone-Дама♥ заход (§14.4). Guard-only: Middle and
+// Culture instead allow it and catch it as Ш-2.
+type TurnSkipped struct {
+	Seat SeatID
+}
+
 func (GameStarted) isEvent()     {}
 func (CardPlayed) isEvent()      {}
 func (ConClosed) isEvent()       {}
@@ -60,3 +67,4 @@ func (PlayerFinished) isEvent()  {}
 func (GameFinished) isEvent()    {}
 func (CardsTaken) isEvent()      {}
 func (PodkladkaPlayed) isEvent() {}
+func (TurnSkipped) isEvent()     {}

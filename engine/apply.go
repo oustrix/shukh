@@ -134,8 +134,24 @@ func (s State) nextLive(after SeatID) SeatID {
 
 // settleTurn points Turn at candidate. (Task 9 upgrades it to skip the Guard
 // lone-Дама♥ opener, §14.4.)
+// forcedQueenSkip reports the Guard-only lone-Дама♥ opener case (§14.4): the con
+// is empty and seat's only card is Дама♥, so its sole "move" would be the
+// forbidden Дама♥ заход (R-3.7.2). Such a turn is skipped in Guard.
+func (s State) forcedQueenSkip(seat SeatID) bool {
+	h := s.Hands[seat]
+	return len(s.Table) == 0 && len(h) == 1 && IsQueenHearts(h[0])
+}
+
+// settleTurn points Turn at candidate, skipping past a live seat stuck in the
+// Guard lone-Дама♥ opener case (§14.4) and emitting TurnSkipped for it. At most
+// one seat can qualify (a single Дама♥ exists), so this skips at most once.
 func (s *State) settleTurn(candidate SeatID, events *[]Event) {
-	s.Turn = candidate
+	seat := candidate
+	for s.forcedQueenSkip(seat) {
+		*events = append(*events, TurnSkipped{Seat: seat})
+		seat = s.nextLive(seat)
+	}
+	s.Turn = seat
 }
 
 // removeCard returns hand without its first occurrence of c. The caller has
