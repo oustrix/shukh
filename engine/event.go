@@ -91,11 +91,17 @@ type OneCardDeclared struct {
 	Seat SeatID
 }
 
+// WestDiscarded is emitted when 6(2)♥ is discarded in the endgame (R-9.3).
+type WestDiscarded struct {
+	Seat SeatID
+}
+
 func (ShukhAssessed) isEvent()   {}
 func (ActionReverted) isEvent()  {}
 func (ShukhPaid) isEvent()       {}
 func (ShukhCardsTaken) isEvent() {}
 func (OneCardDeclared) isEvent() {}
+func (WestDiscarded) isEvent()   {}
 
 func (GameStarted) isEvent()     {}
 func (CardPlayed) isEvent()      {}

@@ -128,6 +128,13 @@ func Apply(s State, a Action) (State, []Event, error) {
 		events = append(events, OneCardDeclared{Seat: act.Seat})
 	case AskCount:
 		ns.assessShukh(act.Target, Sh11, false, false, &events) // R-6.2, no extra effect
+	case DiscardWest:
+		west := Card{Suit: Hearts, Rank: ns.Rules.LowestRank()} // 6(2)♥
+		ns.Hands[turn] = removeCard(ns.Hands[turn], west)
+		ns.Discard = append(ns.Discard, west)
+		ns.Endgame.MustDiscard = false
+		events = append(events, WestDiscarded{Seat: turn})
+		ns.settleTurn(ns.nextLive(turn), &events)
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -384,6 +391,9 @@ func (s *State) resolveExits(order []SeatID, events *[]Event) {
 			s.Finish = append(s.Finish, seat)
 			*events = append(*events, PlayerFinished{Seat: seat, Place: len(s.Finish)})
 		}
+	}
+	if s.liveCount() == 2 {
+		s.Endgame.Active = true // §9.2: 6(2)♥ now подлежит сбросу (R-9.3)
 	}
 	if s.liveCount() <= 1 {
 		s.Phase = Finished

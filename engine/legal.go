@@ -69,6 +69,12 @@ func turnActions(s State, seat SeatID) []Action {
 	if len(s.Table) == 0 {
 		// Заход: any card but Дама♥ (R-5.2). A lone Дама♥ yields nil — the Guard
 		// skip (§14.4) keeps Turn from ever resting here.
+		west := Card{Suit: Hearts, Rank: s.Rules.LowestRank()} // 6(2)♥
+		holdsWest := slices.Contains(hand, west)
+		// Post-Ш-12 obligation: the holder must DiscardWest before anything else.
+		if s.Endgame.MustDiscard && holdsWest {
+			return []Action{DiscardWest{}}
+		}
 		var out []Action
 		for _, c := range hand {
 			// Дама♥ заход (R-3.7.2): Guard blocks it (§14.4); Middle allows it and
@@ -76,7 +82,13 @@ func turnActions(s State, seat SeatID) []Action {
 			if IsQueenHearts(c) && s.Mode == Guard {
 				continue
 			}
+			if s.Endgame.Active && s.Rules.IsLowestHeart(c) && s.Mode == Guard {
+				continue // R-9.4.3: 6(2)♥ заход is illegal use; blocked in Guard
+			}
 			out = append(out, PlayCard{Card: c})
+		}
+		if s.Endgame.Active && holdsWest {
+			out = append(out, DiscardWest{}) // R-9.3
 		}
 		return out
 	}
@@ -95,8 +107,8 @@ func turnActions(s State, seat SeatID) []Action {
 		}
 	}
 	out = append(out, TakeBottomAndPass{}) // R-5.3b: always available on a non-empty con
-	if s.Rules.IsSecondLowestHeart(s.Table[0].Card) && slices.ContainsFunc(hand, s.Rules.IsLowestHeart) {
-		out = append(out, PodkladkaWest{}) // R-5.3c/R-3.6.2
+	if !s.Endgame.Active && s.Rules.IsSecondLowestHeart(s.Table[0].Card) && slices.ContainsFunc(hand, s.Rules.IsLowestHeart) {
+		out = append(out, PodkladkaWest{}) // R-5.3c/R-3.6.2 — forbidden in the endgame (R-9.4.3)
 	}
 	return out
 }

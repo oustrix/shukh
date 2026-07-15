@@ -46,7 +46,12 @@ type DeclareOneCard struct{ Seat SeatID }
 // obligation, not by who asks.
 type AskCount struct{ Target SeatID }
 
+// DiscardWest sends 6(2)♥ to the discard in the two-player endgame (R-9.3). A
+// turn-action for the holder at заход time; it passes the turn (P-5).
+type DiscardWest struct{}
+
 func (PlayCard) isAction()          {}
+func (DiscardWest) isAction()       {}
 func (TakeBottomAndPass) isAction() {}
 func (PodkladkaWest) isAction()     {}
 func (ClaimShukh) isAction()        {}
