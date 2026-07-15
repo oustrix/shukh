@@ -162,6 +162,44 @@ func TestApplyTakeShukhCardsWhenTakeable(t *testing.T) {
 	require.Contains(t, events, ShukhCardsTaken{Seat: 0, Cards: []Card{{Clubs, 9}, {Diamonds, 10}}})
 }
 
+func TestApplyEarlyTakeGuardBlocked(t *testing.T) {
+	// Guard: an untakeable Shukh pile is not offered, so an early take is rejected.
+	s := playing(map[SeatID][]Card{0: {{Spades, 7}}, 1: {{Clubs, 8}}}, nil, 1)
+	s.Shukh[0] = []Card{{Clubs, 9}}
+	s.ShukhTakeable[0] = false
+	_, _, err := Apply(s, TakeShukhCards{Seat: 0})
+	require.Error(t, err)
+}
+
+func TestApplyEarlyTakeMiddleSetsUnsettledSh3(t *testing.T) {
+	// Middle: an early take is allowed but нелегально. It moves the cards to hand
+	// and opens a Ш-3 window over the snapshot; a claim reverses it (cards back in
+	// the Shukh zone) and assesses Ш-3 (no extra effect). Con is open (7♠ on the
+	// table), so nothing settles automatically.
+	s := middle(map[SeatID][]Card{
+		0: {{Spades, 7}, {Spades, 6}},
+		1: {{Clubs, 8}, {Clubs, 9}},
+	}, []TableCard{{Card: Card{Spades, 5}, By: 1}}, 0)
+	s.Shukh[0] = []Card{{Diamonds, 10}}
+	s.ShukhTakeable[0] = false
+
+	ns, _, err := Apply(s, TakeShukhCards{Seat: 0})
+	require.NoError(t, err)
+	require.NotNil(t, ns.Unsettled)
+	require.Equal(t, Sh3, ns.Unsettled.Code)
+	require.ElementsMatch(t, []Card{{Spades, 7}, {Spades, 6}, {Diamonds, 10}}, ns.Hands[0])
+
+	ns2, events, err := Apply(ns, ClaimShukh{Target: 0, Code: Sh3})
+	require.NoError(t, err)
+	require.Nil(t, ns2.Unsettled)
+	require.ElementsMatch(t, []Card{{Diamonds, 10}}, ns2.Shukh[0]) // reversed back
+	require.ElementsMatch(t, []Card{{Spades, 7}, {Spades, 6}}, ns2.Hands[0])
+	require.Contains(t, events, ShukhAssessed{Offender: 0, Code: Sh3})
+	// Ш-3 has no extra effect (no skip); seat 1 pays into seat 0's Shukh (2 cards).
+	require.NotNil(t, ns2.Pending)
+	require.Equal(t, []SeatID{1}, ns2.Pending.Owed)
+}
+
 func TestCloseConMarksShukhTakeable(t *testing.T) {
 	// A Shukh pile laid during an open con becomes takeable when that con closes
 	// (P-4). 2 live, threshold 2: seat 0 beats 8♠ with 10♠ → close → mark.

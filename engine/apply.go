@@ -107,9 +107,12 @@ func Apply(s State, a Action) (State, []Event, error) {
 			ns.Pending = nil
 		}
 	case TakeShukhCards:
-		// The takeable path (R-8.3): lift the pile into hand. The early-take Ш-3
-		// window (§15.4) is added in Task 7 — this case does not yet check
-		// ShukhTakeable before taking.
+		if !ns.ShukhTakeable[act.Seat] {
+			// Middle early take (LegalActions only offers this in Middle when not yet
+			// takeable): allowed but нелегально → open the Ш-3 window over the
+			// snapshot, then take the cards (the offense «прижилось» unless claimed).
+			ns.Unsettled = &Unsettled{Prev: s, Seat: act.Seat, Code: Sh3}
+		}
 		taken := ns.Shukh[act.Seat]
 		ns.Shukh[act.Seat] = nil
 		ns.ShukhTakeable[act.Seat] = false
