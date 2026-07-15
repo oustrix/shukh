@@ -1,6 +1,9 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // dealAll plays out the automatic §4 deal: it turns an ordered deck into each
 // seat's starting pile (R-4.3…R-4.10). deck[0] is the top of the talon (drawn
@@ -90,9 +93,6 @@ func dealAll(rs RuleSet, seats []SeatID, deck []Card) map[SeatID][]Card {
 	return piles
 }
 
-// starter is 9♦ — the holder opens the first con (R-5.1).
-var starter = Card{Suit: Diamonds, Rank: 9}
-
 // NewGame validates the config and deck, runs the automatic §4 deal, and returns
 // the starting state plus a GameStarted event. deck must be exactly the
 // NewDeck(cfg.Rules) multiset (any order — shuffling is the caller's job via the
@@ -115,7 +115,7 @@ func NewGame(cfg Config, deck []Card) (State, []Event, error) {
 
 	hands := dealAll(rs, seats, deck)
 
-	turn, ok := holderOf(hands, starter)
+	turn, ok := opener(hands)
 	if !ok {
 		// 9♦ is in every deck size and I-1 puts it in exactly one hand; a miss
 		// means a dealing bug.
@@ -165,14 +165,12 @@ func validateDeck(rs RuleSet, deck []Card) error {
 	return nil
 }
 
-// holderOf returns the seat whose hand contains c. With I-1 holding, c is in at
-// most one hand.
-func holderOf(hands map[SeatID][]Card, c Card) (SeatID, bool) {
+// opener returns the seat holding 9♦, who opens the first con (R-5.1). With I-1
+// holding, exactly one hand contains it.
+func opener(hands map[SeatID][]Card) (SeatID, bool) {
 	for s, h := range hands {
-		for _, x := range h {
-			if x == c {
-				return s, true
-			}
+		if slices.ContainsFunc(h, IsStarter) {
+			return s, true
 		}
 	}
 	return 0, false
