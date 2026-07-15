@@ -37,10 +37,7 @@ func Apply(s State, a Action) (State, []Event, error) {
 
 	// Pre-action hand sizes (§15.6), captured from the input s before any mutation,
 	// for reconcileOneCard's before/after transition check.
-	before := make(map[SeatID]int, len(s.Hands))
-	for seat, h := range s.Hands {
-		before[seat] = len(h)
-	}
+	before := handSizes(s.Hands)
 
 	switch act := a.(type) {
 	case PlayCard:
@@ -98,6 +95,7 @@ func Apply(s State, a Action) (State, []Event, error) {
 		ns = s.Unsettled.Prev.clone()
 		events = append(events, ActionReverted{Seat: s.Unsettled.Seat})
 		ns.assessShukh(s.Unsettled.Seat, s.Unsettled.Code, s.Unsettled.Code == Sh2, false, &events)
+		before = handSizes(ns.Hands) // reconcile against the restored snapshot, not the post-offense sizes
 	case GiveShukhCard:
 		// A §8 payment: the current head payer moves one non-last card into the
 		// offender's Shukh zone (I-3, not the offender's hand). When the last
@@ -213,6 +211,16 @@ func (s *State) markShukhTakeable() {
 			s.ShukhTakeable[seat] = true
 		}
 	}
+}
+
+// handSizes snapshots each seat's hand size — the basis reconcileOneCard compares
+// against to detect a transition into/out of exactly one card (§15.6).
+func handSizes(hands map[SeatID][]Card) map[SeatID]int {
+	m := make(map[SeatID]int, len(hands))
+	for seat, h := range hands {
+		m[seat] = len(h)
+	}
+	return m
 }
 
 // reconcileOneCard updates OwesOneCard by hand-size transition (§15.6): a seat

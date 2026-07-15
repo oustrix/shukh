@@ -46,3 +46,21 @@ func TestDeclareOneCardClearsFlag(t *testing.T) {
 	require.Contains(t, events, OneCardDeclared{Seat: 0})
 	require.Nil(t, LegalActions(ns, 0)) // nothing more to declare; not its turn
 }
+
+func TestClaimShukhPreservesDeclaredFlag(t *testing.T) {
+	// R-6.3 sticky: an offender who already declared «одна карта» (OwesOneCard
+	// false at 1 card) must NOT be re-flagged as owing after their Ш-2 is reversed.
+	s := middle(map[SeatID][]Card{
+		0: {{Hearts, Queen}}, // lone Дама♥, already declared
+		1: {{Clubs, 8}, {Clubs, 9}},
+	}, nil, 0)
+	s.OwesOneCard[0] = false // declared
+
+	ns, _, err := Apply(s, PlayCard{Card{Hearts, Queen}}) // Middle Ш-2 заход
+	require.NoError(t, err)
+	require.False(t, ns.OwesOneCard[0]) // hand went to 0
+
+	ns2, _, err := Apply(ns, ClaimShukh{Target: 0, Code: Sh2}) // reverse
+	require.NoError(t, err)
+	require.False(t, ns2.OwesOneCard[0]) // snapshot restored hand=1, flag must stay false (not re-set true)
+}
