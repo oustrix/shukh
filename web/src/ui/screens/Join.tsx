@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { roomPath } from '../../routes'
 import { Button } from '../kit/Button'
 import styles from './Screens.module.css'
 
@@ -13,11 +14,16 @@ export function Join() {
       className={styles.centered}
       onSubmit={(e) => {
         e.preventDefault()
-        navigate(`/room/${code.trim()}`)
+        navigate(roomPath(code.trim()))
       }}
     >
       <h1>Шух</h1>
-      <input aria-label="Имя" placeholder="Имя" value={name} onChange={(e) => setName(e.target.value)} />
+      <input
+        aria-label="Имя"
+        placeholder="Имя"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
       <input
         aria-label="Код комнаты"
         placeholder="Код комнаты"

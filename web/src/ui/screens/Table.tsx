@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { isYourTurn } from '../../contract/types'
-import { useGameStore } from '../../store/game'
+import { useGameStore, selectSeats, selectView } from '../../store/game'
 import { Hand } from '../table/Hand'
 import { Con } from '../table/Con'
 import { OpponentSeat } from '../table/OpponentSeat'
@@ -8,14 +8,15 @@ import { ActionBar } from '../table/ActionBar'
 import styles from '../table/Table.module.css'
 
 export function Table() {
-  const view = useGameStore((s) => s.snapshot?.view ?? null)
-  const seats = useGameStore((s) => s.snapshot?.seats ?? [])
+  const view = useGameStore(selectView)
+  const seats = useGameStore(selectSeats)
   const play = useGameStore((s) => s.play)
   const [selected, setSelected] = useState<number | null>(null)
 
   if (!view) return <div className={styles.con}>Загрузка стола…</div>
 
-  const nameOf = (seat: number) => seats.find((s) => s.seat === seat)?.name ?? `Игрок ${seat}`
+  const nameBySeat = new Map(seats.map((s) => [s.seat, s.name]))
+  const nameOf = (seat: number) => nameBySeat.get(seat) ?? `Игрок ${seat}`
 
   return (
     <div className={styles.table}>

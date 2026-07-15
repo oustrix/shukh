@@ -3,7 +3,7 @@
   border: none;
   border-radius: var(--radius);
   background: var(--accent);
-  color: #201a08;
+  color: var(--btn-text);
   font: inherit;
   font-weight: 600;
   cursor: pointer;

@@ -10,6 +10,10 @@ export interface GameState {
   play: (action: Action) => void
 }
 
+// Общие селекторы — чтобы компоненты не дублировали разбор snapshot.
+export const selectSeats = (s: GameState) => s.snapshot?.seats ?? []
+export const selectView = (s: GameState) => s.snapshot?.view ?? null
+
 // Создаёт изолированный стор поверх переданного транспорта. Подписка — ПОСЛЕ
 // создания стора: транспорт пушит в уже готовый setState.
 export function createGameStore(transport: Transport) {

@@ -1,4 +1,5 @@
 import type { Card as CardT } from '../../contract/types'
+import { cx } from '../kit/cx'
 import { rankLabel, isRedSuit, cardLabel } from './cardText'
 import styles from './Card.module.css'
 
@@ -12,9 +13,7 @@ interface CardProps {
 export function Card({ card, faceDown, selected, onClick }: CardProps) {
   const hidden = faceDown || !card
   const red = card ? isRedSuit(card.suit) : false
-  const cls = [styles.card, selected ? styles.selected : '', onClick ? styles.clickable : '']
-    .filter(Boolean)
-    .join(' ')
+  const cls = cx(styles.card, selected && styles.selected, onClick && styles.clickable)
   return (
     <svg
       viewBox="0 0 60 84"

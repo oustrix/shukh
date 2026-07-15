@@ -1,11 +1,12 @@
 import { useNavigate, useParams } from 'react-router-dom'
-import { useGameStore } from '../../store/game'
+import { useGameStore, selectSeats } from '../../store/game'
+import { tablePath } from '../../routes'
 import { Button } from '../kit/Button'
 import styles from './Screens.module.css'
 
 export function Lobby() {
   const { code } = useParams()
-  const seats = useGameStore((s) => s.snapshot?.seats ?? [])
+  const seats = useGameStore(selectSeats)
   const navigate = useNavigate()
   return (
     <div className={styles.centered}>
@@ -17,7 +18,7 @@ export function Lobby() {
           </li>
         ))}
       </ul>
-      <Button onClick={() => navigate(`/room/${code}/table`)}>Начать</Button>
+      <Button onClick={() => navigate(tablePath(code ?? ''))}>Начать</Button>
     </div>
   )
 }
