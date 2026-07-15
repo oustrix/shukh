@@ -488,7 +488,12 @@ func TestApplyMiddleQueenZahodSetsUnsettled(t *testing.T) {
 	require.Equal(t, SeatID(0), ns.Unsettled.Seat)
 	require.Equal(t, Sh2, ns.Unsettled.Code)
 	require.Equal(t, SeatID(1), ns.Turn)
-	require.Equal(t, []Action{TakeBottomAndPass{}}, LegalActions(ns, 1)) // can only take Дама♥
+	// Seat 1 (next-to-act) can only take the Дама♥ (it is unbeatable — no бой) or
+	// catch the ШУХ (R-8.9: any at-table player may claim, incl. the next player —
+	// required for heads-up). No PlayCard бой is offered.
+	require.ElementsMatch(t, []Action{
+		ClaimShukh{Target: 0, Code: Sh2}, TakeBottomAndPass{},
+	}, LegalActions(ns, 1))
 }
 
 func TestApplyMiddleQueenZahodSettledByNextMove(t *testing.T) {
@@ -505,7 +510,9 @@ func TestApplyMiddleQueenZahodSettledByNextMove(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, ns2.Unsettled)                              // settled
 	require.ElementsMatch(t, []Card{{Clubs, 8}, {Hearts, Queen}}, ns2.Hands[1])
-	require.NoError(t, CheckInvariants(ns2))                   // I-6 restored (empty table)
+	// I-6-restored on the stable position is asserted by the Task 12 fuzz on real
+	// dealt games; partial-deck unit states here don't satisfy I-1, so CheckInvariants
+	// is not called on them.
 }
 
 func TestApplyClaimShukhReversesQueenZahodAndSkips(t *testing.T) {
@@ -526,7 +533,7 @@ func TestApplyClaimShukhReversesQueenZahodAndSkips(t *testing.T) {
 	require.Equal(t, SeatID(1), ns2.Turn)                       // seat 0 skipped (Ш-2)
 	require.Contains(t, events, ActionReverted{Seat: 0})
 	require.Contains(t, events, ShukhAssessed{Offender: 0, Code: Sh2})
-	require.NoError(t, CheckInvariants(ns2))
+	// (No CheckInvariants here — partial-deck state; I-6-restored covered by fuzz.)
 }
 
 func TestApplyClaimShukhRejectedWithoutWindow(t *testing.T) {
@@ -830,7 +837,9 @@ func TestApplyShukhPaymentGate(t *testing.T) {
 	require.ElementsMatch(t, []Card{{Hearts, Queen}}, ns.Hands[0])          // hand unchanged by payment
 	require.Equal(t, SeatID(1), ns.Turn)                                    // Ш-2 skip past seat 0
 	require.True(t, ns.ShukhTakeable[0])                                    // con already over (empty table)
-	require.NoError(t, CheckInvariants(ns))
+	// (No CheckInvariants — partial-deck unit state does not satisfy I-1; I-2/I-3
+	// are asserted structurally above, ns.Shukh[0] holds the paid cards, hands hold
+	// the rest. Full I-1/I-3 conservation across the Shukh zone is covered by fuzz.)
 }
 
 func TestApplyShukhOneCardPlayerDoesNotPay(t *testing.T) {
