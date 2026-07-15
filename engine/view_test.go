@@ -54,3 +54,31 @@ func TestViewProjectsSelfAndOpponents(t *testing.T) {
 		require.Equal(t, st.Live[o.Seat], o.Live)
 	}
 }
+
+func TestViewPublicZones(t *testing.T) {
+	st := viewGame(t)
+	opener := st.Turn
+
+	// Opener plays one card → the con becomes non‑empty (заход, R‑5.2).
+	acts := engine.LegalActions(st, opener)
+	require.NotEmpty(t, acts)
+	play, ok := acts[0].(engine.PlayCard)
+	require.True(t, ok, "first legal action of the opener is a PlayCard")
+	st, _, err := engine.Apply(st, play) // Apply reads the turn from state (no seat arg)
+	require.NoError(t, err)
+
+	v := engine.View(st, opener)
+
+	// The con is public: same cards, same order.
+	require.Equal(t, st.Table, v.Table)
+	require.Len(t, v.Table, 1)
+	require.Equal(t, play.Card, v.Table[0].Card)
+
+	// Discard and talon are sizes only.
+	require.Equal(t, len(st.Discard), v.Discard)
+	require.Equal(t, len(st.Talon), v.Talon)
+	require.Equal(t, 0, v.Talon, "talon is empty after dealing (R‑4.10)")
+
+	// Finish mirrors state (empty this early).
+	require.Equal(t, st.Finish, v.Finish)
+}
