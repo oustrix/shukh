@@ -38,8 +38,8 @@ func Apply(s State, a Action) (State, []Event, error) {
 		if wasEmpty {
 			// Заход: never closes (threshold ≥ 2); pass the turn.
 			ns.settleTurn(ns.nextLive(turn), &events)
-		} else if len(ns.Table) == ns.liveCount() {
-			ns.closeCon(turn, &events)
+		} else if IsQueenHearts(act.Card) || len(ns.Table) == ns.liveCount() {
+			ns.closeCon(turn, &events) // Дама♥ closes immediately (R-3.7.1)
 		} else {
 			ns.settleTurn(ns.nextLive(turn), &events)
 		}

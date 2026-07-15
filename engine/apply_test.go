@@ -107,6 +107,23 @@ func TestApplyCloserExitedNextOpens(t *testing.T) {
 	require.Equal(t, SeatID(1), ns.Turn) // R-5.7.2
 }
 
+func TestApplyQueenHeartsImmediateClose(t *testing.T) {
+	// 3 live, threshold 3, con has just 1 card. Seat 0 beats with Дама♥ → closes
+	// immediately regardless of count (R-3.7.1). Closer (0) keeps a card and opens.
+	s := playing(map[SeatID][]Card{
+		0: {{Hearts, Queen}, {Diamonds, 6}},
+		1: {{Clubs, 8}},
+		2: {{Hearts, 9}},
+	}, []TableCard{{Card: Card{Spades, 8}, By: 1}}, 0)
+
+	ns, events, err := Apply(s, PlayCard{Card{Hearts, Queen}})
+	require.NoError(t, err)
+	require.Empty(t, ns.Table)
+	require.ElementsMatch(t, []Card{{Spades, 8}, {Hearts, Queen}}, ns.Discard)
+	require.Equal(t, SeatID(0), ns.Turn)
+	require.Contains(t, events, ConClosed{By: 0})
+}
+
 func TestApplyRejectsIllegal(t *testing.T) {
 	s := playing(map[SeatID][]Card{0: {{Spades, 7}}, 1: {{Clubs, 8}}}, nil, 0)
 
