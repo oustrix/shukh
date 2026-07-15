@@ -147,3 +147,34 @@ func TestViewWorksForEverySeatOffTurn(t *testing.T) {
 		require.Len(t, v.Opponents, len(st.Seats)-1)
 	}
 }
+
+// TestViewFinishAndDiscard covers the two zones an in-progress fresh game leaves
+// empty: a populated Finish and a non-empty Discard. State fields are exported
+// and View is a pure read-only projection, so a hand-built State exercises these
+// without playing a game to completion. It closes the last corner of the copy
+// guarantee (Finish is the only returned slice not mutation-tested elsewhere) and
+// checks Discard as a size on a non-empty pile.
+func TestViewFinishAndDiscard(t *testing.T) {
+	st := engine.State{
+		Seats:   []engine.SeatID{0, 1},
+		Hands:   map[engine.SeatID][]engine.Card{0: {{Suit: engine.Spades, Rank: 7}}},
+		Discard: []engine.Card{{Suit: engine.Clubs, Rank: 8}, {Suit: engine.Hearts, Rank: 9}},
+		Finish:  []engine.SeatID{1},
+		Live:    map[engine.SeatID]bool{0: true, 1: false},
+	}
+
+	v := engine.View(st, 0)
+
+	// Discard is projected as a size, not contents, on a non-empty pile.
+	require.Equal(t, len(st.Discard), v.Discard)
+	require.Equal(t, 2, v.Discard)
+
+	// Finish is a copy: mutating the returned slice must not touch state.
+	wantFinish := slices.Clone(st.Finish)
+	require.Equal(t, wantFinish, v.Finish)
+	v.Finish[0] = engine.SeatID(99)
+	require.Equal(t, wantFinish, st.Finish, "Finish mutation did not touch state")
+
+	// A fresh view reflects the pristine Finish.
+	require.Equal(t, wantFinish, engine.View(st, 0).Finish)
+}
