@@ -126,6 +126,8 @@ func Apply(s State, a Action) (State, []Event, error) {
 	case DeclareOneCard:
 		ns.OwesOneCard[act.Seat] = false
 		events = append(events, OneCardDeclared{Seat: act.Seat})
+	case AskCount:
+		ns.assessShukh(act.Target, Sh11, false, false, &events) // R-6.2, no extra effect
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -154,6 +156,8 @@ func isLegal(s State, a Action) bool {
 		return slices.Contains(LegalActions(s, act.Seat), a)
 	case DeclareOneCard:
 		return slices.Contains(LegalActions(s, act.Seat), a)
+	case AskCount:
+		return s.gatesClosed() && s.OwesOneCard[act.Target]
 	default:
 		return slices.Contains(LegalActions(s, s.Turn), a)
 	}

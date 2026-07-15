@@ -41,6 +41,11 @@ type TakeShukhCards struct{ Seat SeatID }
 // obligation (R-6.1). Out of turn; carries the actor seat (P-1).
 type DeclareOneCard struct{ Seat SeatID }
 
+// AskCount asks Target «Сколько карт?». If Target owes an undeclared «одна карта»
+// (R-6.2) it assesses Ш-11. Actor-agnostic (P-1) — validated by the target's
+// obligation, not by who asks.
+type AskCount struct{ Target SeatID }
+
 func (PlayCard) isAction()          {}
 func (TakeBottomAndPass) isAction() {}
 func (PodkladkaWest) isAction()     {}
@@ -48,3 +53,4 @@ func (ClaimShukh) isAction()        {}
 func (GiveShukhCard) isAction()     {}
 func (TakeShukhCards) isAction()    {}
 func (DeclareOneCard) isAction()    {}
+func (AskCount) isAction()          {}

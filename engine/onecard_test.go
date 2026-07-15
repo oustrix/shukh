@@ -64,3 +64,28 @@ func TestClaimShukhPreservesDeclaredFlag(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ns2.OwesOneCard[0]) // snapshot restored hand=1, flag must stay false (not re-set true)
 }
+
+func TestAskCountAssessesSh11(t *testing.T) {
+	// Seat 0 owes «одна карта» and hasn't declared → asking triggers Ш-11 (R-6.2).
+	// The other players pay into seat 0's Shukh zone (no skip for Ш-11).
+	s := middle(map[SeatID][]Card{
+		0: {{Diamonds, 9}},
+		1: {{Clubs, 8}, {Clubs, 9}},
+	}, nil, 0)
+	s.OwesOneCard[0] = true
+	require.Contains(t, LegalActions(s, 1), AskCount{Target: 0})
+
+	ns, events, err := Apply(s, AskCount{Target: 0})
+	require.NoError(t, err)
+	require.Contains(t, events, ShukhAssessed{Offender: 0, Code: Sh11})
+	require.NotNil(t, ns.Pending)
+	require.Equal(t, []SeatID{1}, ns.Pending.Owed)
+	require.False(t, ns.Pending.Skip) // Ш-11 has no turn-skip
+}
+
+func TestAskCountRejectedWhenNoObligation(t *testing.T) {
+	// No obligation → false trigger → rejected (its Ш-8/Ш-9 punishment is Спец 2).
+	s := middle(map[SeatID][]Card{0: {{Diamonds, 9}, {Spades, 7}}, 1: {{Clubs, 8}}}, nil, 0)
+	_, _, err := Apply(s, AskCount{Target: 0})
+	require.Error(t, err)
+}

@@ -42,8 +42,15 @@ func TestFuzzGamesTerminate(t *testing.T) {
 		for s.Phase != engine.Finished {
 			require.Lessf(t, steps, maxSteps, "seed %d: game did not terminate in %d steps", seed, maxSteps)
 
-			legal := engine.LegalActions(s, s.Turn)
-			require.NotEmptyf(t, legal, "seed %d step %d: Turn %d has no legal action", seed, steps, s.Turn)
+			// The acting seat is s.Turn only when no gate is open; a §8 payment gate
+			// (e.g. Ш-11 via AskCount, which — unlike Ш-2/Ш-3 — can open in Guard
+			// without moving Turn) hands the mic to the head payer instead (P-3).
+			actor := s.Turn
+			if s.Pending != nil && len(s.Pending.Owed) > 0 {
+				actor = s.Pending.Owed[0]
+			}
+			legal := engine.LegalActions(s, actor)
+			require.NotEmptyf(t, legal, "seed %d step %d: seat %d has no legal action", seed, steps, actor)
 
 			a := legal[rng.IntN(len(legal))]
 			ns, _, err := engine.Apply(s, a)

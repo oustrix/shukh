@@ -48,6 +48,11 @@ func LegalActions(s State, seat SeatID) []Action {
 	if s.OwesOneCard[seat] {
 		social = append(social, DeclareOneCard{Seat: seat})
 	}
+	for _, t := range s.Seats {
+		if t != seat && s.OwesOneCard[t] {
+			social = append(social, AskCount{Target: t})
+		}
+	}
 	if seat != s.Turn {
 		return social
 	}
