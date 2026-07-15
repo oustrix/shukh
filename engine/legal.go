@@ -45,6 +45,9 @@ func LegalActions(s State, seat SeatID) []Action {
 		// allowed and caught as Ш-3 (§15.4).
 		social = append(social, TakeShukhCards{Seat: seat})
 	}
+	if s.OwesOneCard[seat] {
+		social = append(social, DeclareOneCard{Seat: seat})
+	}
 	if seat != s.Turn {
 		return social
 	}

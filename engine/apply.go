@@ -35,6 +35,13 @@ func Apply(s State, a Action) (State, []Event, error) {
 		ns.Unsettled = nil
 	}
 
+	// Pre-action hand sizes (§15.6), captured from the input s before any mutation,
+	// for reconcileOneCard's before/after transition check.
+	before := make(map[SeatID]int, len(s.Hands))
+	for seat, h := range s.Hands {
+		before[seat] = len(h)
+	}
+
 	switch act := a.(type) {
 	case PlayCard:
 		wasEmpty := len(ns.Table) == 0
@@ -118,6 +125,9 @@ func Apply(s State, a Action) (State, []Event, error) {
 		ns.ShukhTakeable[act.Seat] = false
 		ns.Hands[act.Seat] = append(ns.Hands[act.Seat], taken...)
 		events = append(events, ShukhCardsTaken{Seat: act.Seat, Cards: taken})
+	case DeclareOneCard:
+		ns.OwesOneCard[act.Seat] = false
+		events = append(events, OneCardDeclared{Seat: act.Seat})
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -125,6 +135,7 @@ func Apply(s State, a Action) (State, []Event, error) {
 		// silently no-op.
 		return s, nil, &IllegalAction{Code: "not_implemented", Rule: "§5"}
 	}
+	ns.reconcileOneCard(before)
 	return ns, events, nil
 }
 
@@ -142,6 +153,8 @@ func isLegal(s State, a Action) bool {
 		}
 		return slices.Contains(LegalActions(s, s.Pending.Owed[0]), a)
 	case TakeShukhCards:
+		return slices.Contains(LegalActions(s, act.Seat), a)
+	case DeclareOneCard:
 		return slices.Contains(LegalActions(s, act.Seat), a)
 	default:
 		return slices.Contains(LegalActions(s, s.Turn), a)
@@ -198,6 +211,23 @@ func (s *State) markShukhTakeable() {
 	for seat, pile := range s.Shukh {
 		if len(pile) > 0 {
 			s.ShukhTakeable[seat] = true
+		}
+	}
+}
+
+// reconcileOneCard updates OwesOneCard by hand-size transition (§15.6): a seat
+// crossing INTO exactly one card owes a declaration (R-6.1); a seat leaving one
+// card clears it (R-6.3 «успел походить» — any move away from 1 auto-clears);
+// staying at one card is left as-is so a prior DeclareOneCard sticks. `before`
+// maps each seat to its pre-action hand size.
+func (s *State) reconcileOneCard(before map[SeatID]int) {
+	for seat := range s.Hands {
+		now := len(s.Hands[seat])
+		switch {
+		case now == 1 && before[seat] != 1:
+			s.OwesOneCard[seat] = true
+		case now != 1:
+			s.OwesOneCard[seat] = false
 		}
 	}
 }

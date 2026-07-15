@@ -37,9 +37,14 @@ type GiveShukhCard struct{ Card Card }
 // own pile.
 type TakeShukhCards struct{ Seat SeatID }
 
+// DeclareOneCard announces «Одна карта!» for Seat, clearing its one-card
+// obligation (R-6.1). Out of turn; carries the actor seat (P-1).
+type DeclareOneCard struct{ Seat SeatID }
+
 func (PlayCard) isAction()          {}
 func (TakeBottomAndPass) isAction() {}
 func (PodkladkaWest) isAction()     {}
 func (ClaimShukh) isAction()        {}
 func (GiveShukhCard) isAction()     {}
 func (TakeShukhCards) isAction()    {}
+func (DeclareOneCard) isAction()    {}

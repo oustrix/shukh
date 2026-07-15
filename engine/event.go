@@ -86,10 +86,16 @@ type ShukhCardsTaken struct {
 	Cards []Card
 }
 
+// OneCardDeclared is emitted when a player announces «Одна карта!» (R-6.1).
+type OneCardDeclared struct {
+	Seat SeatID
+}
+
 func (ShukhAssessed) isEvent()   {}
 func (ActionReverted) isEvent()  {}
 func (ShukhPaid) isEvent()       {}
 func (ShukhCardsTaken) isEvent() {}
+func (OneCardDeclared) isEvent() {}
 
 func (GameStarted) isEvent()     {}
 func (CardPlayed) isEvent()      {}

@@ -26,6 +26,7 @@ func playing(hands map[SeatID][]Card, table []TableCard, turn SeatID) State {
 		Table:         table,
 		Shukh:         map[SeatID][]Card{},
 		ShukhTakeable: map[SeatID]bool{},
+		OwesOneCard:   map[SeatID]bool{},
 		Live:          live,
 		Turn:          turn,
 	}
