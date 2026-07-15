@@ -5,7 +5,9 @@ import "fmt"
 // CheckInvariants verifies the always-true structural invariants of a stable
 // state. This iteration checks I-1 (card conservation): every card of the deck is
 // in exactly one zone — Talon, a Hand, Table, Discard, or a Shukh pile — with no
-// missing, foreign, or duplicated cards. Later iterations add I-2/I-4/I-5/I-6/I-7.
+// missing, foreign, or duplicated cards; plus the con's structural shape — I-6
+// (Дама♥ never rests on the table) and the beat-stack oracle (⇒ I-7, over a ♠ only
+// a higher ♠). Later iterations add I-2/I-4/I-5.
 //
 // It returns a typed error describing the first violation, or nil. Callers run it
 // after every Apply that yields a stable position (spec §10).
@@ -43,9 +45,11 @@ func CheckInvariants(s State) error {
 		return fmt.Errorf("engine: I-1 violated: %d distinct cards present across zones, want %d", len(seen), rs.deckCount())
 	}
 
-	// I-6 + beat-stack oracle (§14.5): the con is a legal stack — each card
-	// legally beats the one below it (⇒ I-7) — and Дама♥ never rests on the table
-	// (it closes the con immediately, R-3.7.1).
+	// I-6 (strengthened, spec §14.5) + beat-stack oracle: the con is a legal
+	// stack — each card legally beats the one below it (⇒ I-7) — and Дама♥ never
+	// rests on the table. Literal I-6 (never the заходная card, R-3.7.2) is
+	// subsumed: R-3.7.1 makes Дама♥ close+sweep the con the instant it is played,
+	// so it never sits on a stable Table.
 	for i, tc := range s.Table {
 		if IsQueenHearts(tc.Card) {
 			return fmt.Errorf("engine: I-6 violated: Дама♥ present on the con")
