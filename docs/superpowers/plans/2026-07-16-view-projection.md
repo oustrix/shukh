@@ -42,9 +42,12 @@ Existing types consumed (all in `package engine`): `State`, `SeatID`, `Card`, `T
 **Interfaces:**
 - Consumes: `engine.State`, `engine.SeatID`, `engine.Card`, `engine.TableCard`, `engine.RuleSet`, `engine.EnforcementMode`, `engine.Phase`; unexported `State.seatsFrom`.
 - Produces:
-  - `type View struct { Rules RuleSet; Mode EnforcementMode; Phase Phase; You SeatID; Turn SeatID; Hand []Card; ShukhPending int; Opponents []OpponentView; Table []TableCard; Discard int; Talon int; Live map[SeatID]bool; Finish []SeatID }`
+  - `type SeatView struct { Rules RuleSet; Mode EnforcementMode; Phase Phase; You SeatID; Turn SeatID; Hand []Card; ShukhPending int; Opponents []OpponentView; Table []TableCard; Discard int; Talon int; Live map[SeatID]bool; Finish []SeatID }`
   - `type OpponentView struct { Seat SeatID; HandCount int; ShukhPending int; Live bool }`
-  - `func View(s State, seat SeatID) View`
+  - `func View(s State, seat SeatID) SeatView`
+  - **Naming:** Go forbids a type and function sharing a name in one package, so the
+    projection type is `SeatView` and the function stays `View` (keeps the four API
+    verbs `NewGame / LegalActions / Apply / View` parallel).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -121,12 +124,15 @@ Create `engine/view.go`:
 ```go
 package engine
 
-import "slices"
+import (
+	"maps"
+	"slices"
+)
 
-// View is the per‑seat projection of game state (D‑9): exactly what one player
-// may see. Opponents' hands are represented by counts only — there is no card
-// field on OpponentView, so a hidden card is structurally unrepresentable.
-type View struct {
+// SeatView is the per‑seat projection of game state (D‑9): exactly what one
+// player may see. Opponents' hands are represented by counts only — there is no
+// card field on OpponentView, so a hidden card is structurally unrepresentable.
+type SeatView struct {
 	Rules RuleSet
 	Mode  EnforcementMode
 	Phase Phase // Playing | Finished
@@ -160,10 +166,10 @@ type OpponentView struct {
 // s. Unlike LegalActions it is not turn‑gated: every valid seat can always see
 // its own hand and the public state. State is taken by value, matching
 // LegalActions. Precondition: seat is one of s.Seats (Layer 1 guarantees this);
-// an unknown seat yields a well‑formed but meaningless View (empty own hand).
-func View(s State, seat SeatID) View {
+// an unknown seat yields a well‑formed but meaningless SeatView (empty own hand).
+func View(s State, seat SeatID) SeatView {
 	opps := s.seatsFrom(seat) // clockwise from seat, inclusive
-	v := View{
+	v := SeatView{
 		Rules:        s.Rules,
 		Mode:         s.Mode,
 		Phase:        s.Phase,
@@ -185,9 +191,7 @@ func View(s State, seat SeatID) View {
 			Live:         s.Live[k],
 		})
 	}
-	for k, alive := range s.Live {
-		v.Live[k] = alive
-	}
+	maps.Copy(v.Live, s.Live)
 	return v
 }
 ```
