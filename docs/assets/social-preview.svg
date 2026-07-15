@@ -1,0 +1,31 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Шух — старинная карточная игра со сбросом и штрафами">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7efdb"/>
+      <stop offset="1" stop-color="#eadfbf"/>
+    </linearGradient>
+  </defs>
+
+  <!-- paper -->
+  <rect width="1280" height="640" fill="url(#paper)"/>
+  <rect x="28" y="28" width="1224" height="584" rx="14" fill="none" stroke="#b8a878" stroke-width="3" stroke-opacity="0.5"/>
+
+  <!-- suit watermark -->
+  <text x="-30" y="720" font-family="Georgia, 'Times New Roman', serif" font-size="560" fill="#8a7648" fill-opacity="0.10">♠♣♦♥</text>
+
+  <!-- red stamp, top-right -->
+  <g transform="translate(1000 190) rotate(-13)">
+    <rect x="-165" y="-58" width="330" height="116" rx="14" fill="none" stroke="#b5322b" stroke-width="7" stroke-opacity="0.85"/>
+    <rect x="-151" y="-44" width="302" height="88" rx="9" fill="none" stroke="#b5322b" stroke-width="2" stroke-opacity="0.6"/>
+    <text x="0" y="30" text-anchor="middle" font-family="'Arial Black', Impact, 'Helvetica Neue', sans-serif" font-weight="900" font-size="82" letter-spacing="5" fill="#b5322b" fill-opacity="0.88">ШУХ!</text>
+  </g>
+
+  <!-- wordmark -->
+  <text x="110" y="360" font-family="'Helvetica Neue', Arial, sans-serif" font-weight="800" font-size="180" letter-spacing="3" fill="#2b2b2b">Шух</text>
+
+  <!-- subtitle -->
+  <text x="116" y="430" font-family="'Helvetica Neue', Arial, sans-serif" font-size="38" fill="#5b5140">старинная карточная игра со сбросом и штрафами</text>
+
+  <!-- footer tag -->
+  <text x="116" y="540" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="26" fill="#8a7a55">цифровая реализация · движок на Go</text>
+</svg>

@@ -1,0 +1,32 @@
+<svg width="1280" height="320" viewBox="0 0 1280 320" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Шух — старинная карточная игра со сбросом и штрафами">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7efdb"/>
+      <stop offset="1" stop-color="#eee0c2"/>
+    </linearGradient>
+    <clipPath id="frame"><rect width="1280" height="320" rx="16"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#frame)">
+    <!-- paper -->
+    <rect width="1280" height="320" fill="url(#paper)"/>
+    <!-- subtle inner border -->
+    <rect x="16" y="16" width="1248" height="288" rx="10" fill="none" stroke="#b8a878" stroke-width="2" stroke-opacity="0.5"/>
+
+    <!-- suit watermark, bottom-left -->
+    <text x="-8" y="360" font-family="Georgia, 'Times New Roman', serif" font-size="300" fill="#8a7648" fill-opacity="0.12">♠♣♦♥</text>
+
+    <!-- red stamp, right -->
+    <g transform="translate(1010 160) rotate(-13)">
+      <rect x="-150" y="-52" width="300" height="104" rx="12" fill="none" stroke="#b5322b" stroke-width="6" stroke-opacity="0.85"/>
+      <rect x="-138" y="-40" width="276" height="80" rx="8" fill="none" stroke="#b5322b" stroke-width="2" stroke-opacity="0.6"/>
+      <text x="0" y="26" text-anchor="middle" font-family="'Arial Black', Impact, 'Helvetica Neue', sans-serif" font-weight="900" font-size="74" letter-spacing="4" fill="#b5322b" fill-opacity="0.88">ШУХ!</text>
+    </g>
+
+    <!-- wordmark -->
+    <text x="72" y="168" font-family="'Helvetica Neue', Arial, sans-serif" font-weight="800" font-size="104" letter-spacing="2" fill="#2b2b2b">Шух</text>
+
+    <!-- subtitle -->
+    <text x="76" y="212" font-family="'Helvetica Neue', Arial, sans-serif" font-size="27" fill="#5b5140">старинная карточная игра со сбросом и штрафами</text>
+  </g>
+</svg>
