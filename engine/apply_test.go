@@ -140,15 +140,15 @@ func TestApplyRejectsIllegal(t *testing.T) {
 }
 
 func TestApplyRejectsUnimplementedActions(t *testing.T) {
-	// TakeBottomAndPass and PodkladkaWest are legal per LegalActions but not yet
-	// wired into Apply (Tasks 7/8). Until then Apply must reject them with a typed
-	// error, never silently no-op. (This test is superseded when those tasks land.)
+	// PodkladkaWest is legal per LegalActions but not yet wired into Apply
+	// (Task 8). Until then Apply must reject it with a typed error, never
+	// silently no-op. (This test is superseded when that task lands.)
 	s := playing(map[SeatID][]Card{
 		0: {{Hearts, 6}},
 		1: {{Clubs, 8}},
 	}, []TableCard{{Card: Card{Hearts, 7}, By: 1}}, 0)
 
-	for _, a := range []Action{TakeBottomAndPass{}, PodkladkaWest{}} {
+	for _, a := range []Action{PodkladkaWest{}} {
 		ns, events, err := Apply(s, a)
 		var illegal *IllegalAction
 		require.ErrorAs(t, err, &illegal, "%T must be rejected, not silently applied", a)
@@ -156,4 +156,40 @@ func TestApplyRejectsUnimplementedActions(t *testing.T) {
 		require.Empty(t, ns.Table[:0]) // input untouched: table still holds the 7♥
 	}
 	require.Len(t, s.Table, 1) // Apply did not mutate the input
+}
+
+func TestApplyTakeBottom(t *testing.T) {
+	// 2 live. Con has 8♠ (by seat 1). Seat 0 takes it → hand gains 8♠, con empty,
+	// turn passes to seat 1 (who then must заход). Seat 1 still has a card, so no
+	// exit; game continues.
+	s := playing(map[SeatID][]Card{
+		0: {{Diamonds, 6}},
+		1: {{Clubs, 8}},
+	}, []TableCard{{Card: Card{Spades, 8}, By: 1}}, 0)
+
+	ns, events, err := Apply(s, TakeBottomAndPass{})
+	require.NoError(t, err)
+	require.Empty(t, ns.Table)
+	require.ElementsMatch(t, []Card{{Diamonds, 6}, {Spades, 8}}, ns.Hands[0])
+	require.Equal(t, SeatID(1), ns.Turn)
+	require.Equal(t, Playing, ns.Phase)
+	require.Equal(t, []Event{CardsTaken{Seat: 0, Cards: []Card{{Spades, 8}}}}, events)
+}
+
+func TestApplyTakeBottomExitsOwnerAndEndsGame(t *testing.T) {
+	// 2 live. Seat 1 is handless-but-live: its only card (8♠) is the con bottom
+	// (R-5.9). Seat 0 takes it → seat 1 now has empty hand and no card in con →
+	// exits. liveCount 1 → game over; seat 0 is the loser (last place).
+	s := playing(map[SeatID][]Card{
+		0: {{Diamonds, 6}},
+		1: {},
+	}, []TableCard{{Card: Card{Spades, 8}, By: 1}}, 0)
+
+	ns, events, err := Apply(s, TakeBottomAndPass{})
+	require.NoError(t, err)
+	require.Equal(t, Finished, ns.Phase)
+	require.False(t, ns.Live[1])
+	require.Equal(t, []SeatID{1, 0}, ns.Finish) // 1 out first (winner), 0 loser
+	require.Contains(t, events, PlayerFinished{Seat: 1, Place: 1})
+	require.Contains(t, events, GameFinished{Finish: []SeatID{1, 0}})
 }

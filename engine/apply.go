@@ -43,11 +43,21 @@ func Apply(s State, a Action) (State, []Event, error) {
 		} else {
 			ns.settleTurn(ns.nextLive(turn), &events)
 		}
+	case TakeBottomAndPass:
+		taken := ns.Table[0]
+		ns.Table = ns.Table[1:]
+		ns.Hands[turn] = append(ns.Hands[turn], taken.Card)
+		events = append(events, CardsTaken{Seat: turn, Cards: []Card{taken.Card}})
+		// Taking can only shrink the con, so it never closes; but removing the
+		// bottom card may free its (handless) owner to exit (R-9.1).
+		ns.resolveExits([]SeatID{taken.By}, &events)
+		if ns.Phase != Finished {
+			ns.settleTurn(ns.nextLive(turn), &events)
+		}
 	default:
-		// TakeBottomAndPass and PodkladkaWest are legal per LegalActions in many
-		// states, but their Apply cases land in Tasks 7/8. Until then, reject
-		// rather than silently no-op (a legal move must never look applied when
-		// nothing changed).
+		// PodkladkaWest is legal per LegalActions in many states, but its Apply
+		// case lands in Task 8. Until then, reject rather than silently no-op (a
+		// legal move must never look applied when nothing changed).
 		return s, nil, &IllegalAction{Code: "not_implemented", Rule: "§5"}
 	}
 	return ns, events, nil

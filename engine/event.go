@@ -38,9 +38,17 @@ type GameFinished struct {
 	Finish []SeatID
 }
 
+// CardsTaken is emitted when a player takes cards into hand: one bottom card
+// (R-5.8) or a whole eaten con after западло (R-3.6.2).
+type CardsTaken struct {
+	Seat  SeatID
+	Cards []Card
+}
+
 func (GameStarted) isEvent()    {}
 func (CardPlayed) isEvent()     {}
 func (ConClosed) isEvent()      {}
 func (ConSwept) isEvent()       {}
 func (PlayerFinished) isEvent() {}
 func (GameFinished) isEvent()   {}
+func (CardsTaken) isEvent()     {}
