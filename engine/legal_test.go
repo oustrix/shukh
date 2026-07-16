@@ -18,15 +18,17 @@ func playing(hands map[SeatID][]Card, table []TableCard, turn SeatID) State {
 		live[SeatID(i)] = true
 	}
 	return State{
-		Rules: RuleSet{DeckSize: Deck36},
-		Mode:  Guard,
-		Seats: seats,
-		Phase: Playing,
-		Hands: hands,
-		Table: table,
-		Shukh: map[SeatID][]Card{},
-		Live:  live,
-		Turn:  turn,
+		Rules:         RuleSet{DeckSize: Deck36},
+		Mode:          Guard,
+		Seats:         seats,
+		Phase:         Playing,
+		Hands:         hands,
+		Table:         table,
+		Shukh:         map[SeatID][]Card{},
+		ShukhTakeable: map[SeatID]bool{},
+		OwesOneCard:   map[SeatID]bool{},
+		Live:          live,
+		Turn:          turn,
 	}
 }
 
@@ -87,4 +89,21 @@ func TestLegalActionsLoneQueenIsEmpty(t *testing.T) {
 	// Empty con, only card is Дама♥ → no legal заход (Guard blocks it, §14.4).
 	s := playing(map[SeatID][]Card{0: {{Hearts, Queen}}, 1: {{Clubs, 8}}}, nil, 0)
 	require.Empty(t, LegalActions(s, 0))
+}
+
+func TestLegalActionsMiddleAllowsQueenZahod(t *testing.T) {
+	// Empty con. In Guard the Дама♥ заход is blocked (§14.4); in Middle it is
+	// allowed and caught as Ш-2 (§15.3), so it appears among legal заходы.
+	s := playing(map[SeatID][]Card{
+		0: {{Spades, 7}, {Hearts, Queen}},
+		1: {{Clubs, 8}},
+	}, nil, 0)
+
+	require.ElementsMatch(t, []Action{PlayCard{Card{Spades, 7}}}, LegalActions(s, 0)) // Guard
+
+	s.Mode = Middle
+	require.ElementsMatch(t, []Action{
+		PlayCard{Card{Spades, 7}},
+		PlayCard{Card{Hearts, Queen}},
+	}, LegalActions(s, 0))
 }

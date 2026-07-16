@@ -15,8 +15,11 @@ import (
 // (a non-terminating lifecycle), not an expected outcome.
 func TestFuzzGamesTerminate(t *testing.T) {
 	const (
-		games    = 200
-		maxSteps = 5000
+		games = 200
+		// Budget with margin over the observed max (5506, seed 84): the owed-penalty
+		// absorb rule (R-9.1) lengthens games — a seat must play its ШУХ-cards off
+		// before leaving. Exceeding this is a bug (non-terminating lifecycle).
+		maxSteps = 12000
 	)
 	deckSizes := []int{engine.Deck36, engine.Deck52}
 	playerCounts := []int{2, 3, 4, 6}
@@ -42,8 +45,15 @@ func TestFuzzGamesTerminate(t *testing.T) {
 		for s.Phase != engine.Finished {
 			require.Lessf(t, steps, maxSteps, "seed %d: game did not terminate in %d steps", seed, maxSteps)
 
-			legal := engine.LegalActions(s, s.Turn)
-			require.NotEmptyf(t, legal, "seed %d step %d: Turn %d has no legal action", seed, steps, s.Turn)
+			// The acting seat is s.Turn only when no gate is open; a §8 payment gate
+			// (e.g. Ш-11 via AskCount, which — unlike Ш-2/Ш-3 — can open in Guard
+			// without moving Turn) hands the mic to the head payer instead (P-3).
+			actor := s.Turn
+			if s.Pending != nil && len(s.Pending.Owed) > 0 {
+				actor = s.Pending.Owed[0]
+			}
+			legal := engine.LegalActions(s, actor)
+			require.NotEmptyf(t, legal, "seed %d step %d: seat %d has no legal action", seed, steps, actor)
 
 			a := legal[rng.IntN(len(legal))]
 			ns, _, err := engine.Apply(s, a)
@@ -55,6 +65,81 @@ func TestFuzzGamesTerminate(t *testing.T) {
 
 		// Terminal ranking is a full permutation of all seats, exactly one loser
 		// (the last place).
+		require.Lenf(t, s.Finish, np, "seed %d: Finish is not a full ranking", seed)
+		seen := make(map[engine.SeatID]bool, np)
+		for _, seat := range s.Finish {
+			require.Falsef(t, seen[seat], "seed %d: seat %d appears twice in Finish", seed, seat)
+			seen[seat] = true
+		}
+		live := 0
+		for i := 0; i < np; i++ {
+			if s.Live[engine.SeatID(i)] {
+				live++
+			}
+		}
+		require.LessOrEqualf(t, live, 1, "seed %d: more than one live seat at end", seed)
+	}
+}
+
+// TestFuzzMiddleGamesTerminate plays N seeded random *legal* Middle games to the
+// end. Unlike Guard, legal actions belong to several seats at once (claims, asks,
+// payment, takes — §15 model shift), so the driver gathers legal actions across
+// all seats and picks one at random. CheckInvariants self-gates (I-1 only during
+// an open catch-window). Games must terminate with a valid ranking (§15.10).
+func TestFuzzMiddleGamesTerminate(t *testing.T) {
+	const (
+		games = 200
+		// Margin over the observed Middle max (3064, seed 124); the owed-penalty
+		// absorb rule (R-9.1) lengthens games. Matches the Guard budget for parity.
+		maxSteps = 12000
+	)
+	deckSizes := []int{engine.Deck36, engine.Deck52}
+	playerCounts := []int{2, 3, 4, 6}
+
+	for g := 0; g < games; g++ {
+		seed := int64(g + 1)
+		rng := rand.New(rand.NewPCG(uint64(seed), 0x5c0ffee))
+		rs := engine.RuleSet{DeckSize: deckSizes[g%len(deckSizes)]}
+		np := playerCounts[g%len(playerCounts)]
+
+		players := make([]engine.Player, np)
+		for i := range players {
+			players[i] = engine.Player{Name: string(rune('A' + i))}
+		}
+		cfg := engine.Config{Rules: rs, Mode: engine.Middle, Players: players}
+		deck := shuffle.Deck(engine.NewDeck(rs), seed)
+
+		s, _, err := engine.NewGame(cfg, deck)
+		require.NoErrorf(t, err, "seed %d: NewGame", seed)
+		require.NoErrorf(t, engine.CheckInvariants(s), "seed %d: invariants after deal", seed)
+
+		steps := 0
+		for s.Phase != engine.Finished {
+			require.Lessf(t, steps, maxSteps, "seed %d: game did not terminate in %d steps", seed, maxSteps)
+
+			// Gather legal actions across all seats (dedup identical actions). Every
+			// Action variant is a plain comparable struct, so the interface value is
+			// its own dedup key.
+			var pool []engine.Action
+			seen := map[engine.Action]bool{}
+			for i := 0; i < np; i++ {
+				for _, a := range engine.LegalActions(s, engine.SeatID(i)) {
+					if !seen[a] {
+						seen[a] = true
+						pool = append(pool, a)
+					}
+				}
+			}
+			require.NotEmptyf(t, pool, "seed %d step %d: no legal action for any seat", seed, steps)
+
+			a := pool[rng.IntN(len(pool))]
+			ns, _, err := engine.Apply(s, a)
+			require.NoErrorf(t, err, "seed %d step %d: Apply(%T)", seed, steps, a)
+			require.NoErrorf(t, engine.CheckInvariants(ns), "seed %d step %d: invariants after %T", seed, steps, a)
+			s = ns
+			steps++
+		}
+
 		require.Lenf(t, s.Finish, np, "seed %d: Finish is not a full ranking", seed)
 		seen := make(map[engine.SeatID]bool, np)
 		for _, seat := range s.Finish {

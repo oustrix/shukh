@@ -128,15 +128,17 @@ func NewGame(cfg Config, deck []Card) (State, []Event, error) {
 	}
 
 	st := State{
-		Rules: rs,
-		Mode:  cfg.Mode,
-		Seats: seats,
-		Phase: Playing,
-		Talon: nil,
-		Hands: hands,
-		Shukh: make(map[SeatID][]Card, n),
-		Turn:  turn,
-		Live:  live,
+		Rules:         rs,
+		Mode:          cfg.Mode,
+		Seats:         seats,
+		Phase:         Playing,
+		Talon:         nil,
+		Hands:         hands,
+		Shukh:         make(map[SeatID][]Card, n),
+		Turn:          turn,
+		Live:          live,
+		OwesOneCard:   map[SeatID]bool{},
+		ShukhTakeable: map[SeatID]bool{},
 	}
 	return st, []Event{GameStarted{Turn: turn}}, nil
 }

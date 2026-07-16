@@ -70,3 +70,18 @@ func TestCheckInvariantsI6QueenOnTable(t *testing.T) {
 	s.Table = []TableCard{{Card: Card{Hearts, Queen}, By: 0}} // I-6: never rests on table
 	require.Error(t, CheckInvariants(s))
 }
+
+func TestCheckInvariantsSkipsBeatStackWhenUnsettled(t *testing.T) {
+	// A Дама♥ resting on the table violates I-6 in a STABLE state, but during an
+	// open Middle catch-window (Unsettled != nil) only I-1 is asserted (§15.3).
+	s := fullState(RuleSet{DeckSize: Deck36})
+	s.Hands[0] = removeCard(s.Hands[0], Card{Hearts, Queen})
+	s.Table = []TableCard{{Card: Card{Hearts, Queen}, By: 0}}
+
+	// Stable: I-6 fires.
+	require.Error(t, CheckInvariants(s))
+
+	// Unsettled: I-1 still holds (cards conserved), so no error.
+	s.Unsettled = &Unsettled{Seat: 0, Code: Sh2}
+	require.NoError(t, CheckInvariants(s))
+}

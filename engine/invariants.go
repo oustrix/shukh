@@ -7,7 +7,9 @@ import "fmt"
 // in exactly one zone — Talon, a Hand, Table, Discard, or a Shukh pile — with no
 // missing, foreign, or duplicated cards; plus the con's structural shape — I-6
 // (Дама♥ never rests on the table) and the beat-stack oracle (⇒ I-7, over a ♠ only
-// a higher ♠). Later iterations add I-2/I-3/I-4/I-5.
+// a higher ♠). Later iterations add I-2/I-3/I-4/I-5. The con-shape invariants (I-6,
+// beat-stack ⇒ I-7) are checked only when Unsettled == nil; during a Middle
+// catch-window only I-1 is asserted (§15.3).
 //
 // It returns a typed error describing the first violation, or nil. Callers run it
 // after every Apply that yields a stable position (spec §10).
@@ -47,13 +49,16 @@ func CheckInvariants(s State) error {
 	// stack — each card legally beats the one below it (⇒ I-7) — and Дама♥ never
 	// rests on the table. Literal I-6 (never the заходная card, R-3.7.2) is
 	// subsumed: R-3.7.1 makes Дама♥ close+sweep the con the instant it is played,
-	// so it never sits on a stable Table.
-	for i, tc := range s.Table {
-		if IsQueenHearts(tc.Card) {
-			return fmt.Errorf("engine: I-6 violated: Дама♥ present on the con")
-		}
-		if i > 0 && !CanBeat(s.Table[i-1].Card, tc.Card) {
-			return fmt.Errorf("engine: beat-stack violated: %v does not legally beat %v", tc.Card, s.Table[i-1].Card)
+	// so it never sits on a stable Table. Gated on Unsettled == nil per the function
+	// doc — during a Middle catch-window a Дама♥/6(2)♥ may transiently rest here.
+	if s.Unsettled == nil {
+		for i, tc := range s.Table {
+			if IsQueenHearts(tc.Card) {
+				return fmt.Errorf("engine: I-6 violated: Дама♥ present on the con")
+			}
+			if i > 0 && !CanBeat(s.Table[i-1].Card, tc.Card) {
+				return fmt.Errorf("engine: beat-stack violated: %v does not legally beat %v", tc.Card, s.Table[i-1].Card)
+			}
 		}
 	}
 	return nil

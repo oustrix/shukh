@@ -59,6 +59,50 @@ type TurnSkipped struct {
 	Seat SeatID
 }
 
+// ShukhAssessed is emitted when a ШУХ is confirmed against Offender (§8); Code is
+// the §7 trigger.
+type ShukhAssessed struct {
+	Offender SeatID
+	Code     ShukhCode
+}
+
+// ActionReverted is emitted when a claimed ШУХ reverses the offender's last
+// action by restoring the pre-action snapshot (§15.3).
+type ActionReverted struct {
+	Seat SeatID
+}
+
+// ShukhPaid is emitted when a payer gives one card into the offender's Shukh zone
+// (R-8.1/R-8.2); From is the giver.
+type ShukhPaid struct {
+	Offender SeatID
+	From     SeatID
+	Card     Card
+}
+
+// ShukhCardsTaken is emitted when a player lifts his Shukh pile into hand (R-8.3).
+type ShukhCardsTaken struct {
+	Seat  SeatID
+	Cards []Card
+}
+
+// OneCardDeclared is emitted when a player announces «Одна карта!» (R-6.1).
+type OneCardDeclared struct {
+	Seat SeatID
+}
+
+// WestDiscarded is emitted when 6(2)♥ is discarded in the endgame (R-9.3).
+type WestDiscarded struct {
+	Seat SeatID
+}
+
+func (ShukhAssessed) isEvent()   {}
+func (ActionReverted) isEvent()  {}
+func (ShukhPaid) isEvent()       {}
+func (ShukhCardsTaken) isEvent() {}
+func (OneCardDeclared) isEvent() {}
+func (WestDiscarded) isEvent()   {}
+
 func (GameStarted) isEvent()     {}
 func (CardPlayed) isEvent()      {}
 func (ConClosed) isEvent()       {}

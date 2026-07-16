@@ -17,6 +17,50 @@ type TakeBottomAndPass struct{}
 // player's hand and they open next (R-3.6.2/R-5.7.1).
 type PodkladkaWest struct{}
 
+// ClaimShukh catches an open Middle catch-window (§15.3): Target is the offender
+// (State.Unsettled.Seat), Code the claimed ШУХ (must match the window). It
+// reverses the offending action and assesses the ШУХ. Actor-agnostic (P-1): any
+// live non-target seat may raise it; the outcome depends only on the window.
+type ClaimShukh struct {
+	Target SeatID
+	Code   ShukhCode
+}
+
+// GiveShukhCard pays one card into the offender's Shukh zone during a §8 payment
+// gate. It applies as the current payer, State.Pending.Owed[0] (P-1/P-3); Card
+// must be one of that payer's non-last cards (R-8.1.1/I-2).
+type GiveShukhCard struct{ Card Card }
+
+// TakeShukhCards lifts Seat's set-aside Shukh pile into his hand (R-8.3), allowed
+// only once the con it was laid in has ended (State.ShukhTakeable[Seat]). Taking
+// it early is Ш-3. Carries the actor seat (P-1); a player takes only his own pile.
+type TakeShukhCards struct{ Seat SeatID }
+
+// DeclareOneCard announces «Одна карта!» for Seat, clearing its one-card
+// obligation (R-6.1). Out of turn; carries the actor seat (P-1).
+type DeclareOneCard struct{ Seat SeatID }
+
+// AskCount asks Target «Сколько карт?». If Target owes an undeclared «одна карта»
+// (R-6.2) it assesses Ш-11. Actor-agnostic (P-1) — validated by the target's
+// obligation, not by who asks.
+type AskCount struct{ Target SeatID }
+
+// DiscardWest sends 6(2)♥ to the discard in the two-player endgame (R-9.3). A
+// turn-action for the holder at заход time; it passes the turn (P-5).
+type DiscardWest struct{}
+
+// AskAboutWest asks whether Target holds 6(2)♥ in the endgame (R-9.4). It closes
+// the безнаказанно window (Endgame.Asked) and, if Target still holds 6(2)♥,
+// assesses Ш-12 (skip + discard obligation). Actor-agnostic (P-1).
+type AskAboutWest struct{ Target SeatID }
+
 func (PlayCard) isAction()          {}
+func (DiscardWest) isAction()       {}
 func (TakeBottomAndPass) isAction() {}
 func (PodkladkaWest) isAction()     {}
+func (ClaimShukh) isAction()        {}
+func (GiveShukhCard) isAction()     {}
+func (TakeShukhCards) isAction()    {}
+func (DeclareOneCard) isAction()    {}
+func (AskCount) isAction()          {}
+func (AskAboutWest) isAction()      {}

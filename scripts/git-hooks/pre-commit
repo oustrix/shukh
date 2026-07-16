@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+#
+# pre-commit hook (версионируется в scripts/git-hooks; ставится через `make install-hooks`).
+# Если в staged-изменениях затронут engine/, go.mod или go.sum — собирает engine и гоняет
+# его тесты. Иначе выходит мгновенно. Обход: `git commit --no-verify`.
+set -euo pipefail
+
+staged="$(git diff --cached --name-only --diff-filter=ACM)"
+
+if ! grep -qE '^(engine/|go\.mod$|go\.sum$)' <<<"$staged"; then
+	exit 0
+fi
+
+echo "pre-commit: изменения в engine/go.mod/go.sum — проверяю engine…"
+
+echo "  → go build ./engine/..."
+if ! go build ./engine/...; then
+	echo "pre-commit: сборка engine упала — коммит отклонён (обход: git commit --no-verify)." >&2
+	exit 1
+fi
+
+echo "  → go test ./engine/..."
+if ! go test ./engine/...; then
+	echo "pre-commit: тесты engine упали — коммит отклонён (обход: git commit --no-verify)." >&2
+	exit 1
+fi
+
+echo "pre-commit: engine ок."
