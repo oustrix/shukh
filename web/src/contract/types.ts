@@ -47,7 +47,7 @@ export interface SeatView {
   finish: SeatID[]
 }
 
-// Метаданные комнаты (Слой 1) — имена/готовность НЕ входят в engine.View.
+// Метаданные комнаты (Слой 1) — имена/готовность НЕ входят в engine.SeatView.
 export interface SeatMeta {
   seat: SeatID
   name: string
