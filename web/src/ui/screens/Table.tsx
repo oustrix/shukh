@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { cardKey, isCardPlayable, isYourTurn } from '../../contract/types'
+import { cardKey, isCardPlayable, isLegal } from '../../contract/types'
 import { useGameStore, selectSeats, selectView, selectLegal } from '../../store/game'
 import { Hand } from '../table/Hand'
 import { Con } from '../table/Con'
@@ -20,12 +20,19 @@ export function Table() {
   const nameOf = (seat: number) => nameBySeat.get(seat) ?? `Игрок ${seat}`
 
   const playableKeys = new Set(view.hand.filter((c) => isCardPlayable(legal, c)).map(cardKey))
+  const selectedCard = view.hand.find((c) => cardKey(c) === selectedKey) ?? null
+  const canConfirm = selectedCard != null && isCardPlayable(legal, selectedCard)
+  const canTakeBottom = isLegal(legal, { type: 'takeBottomAndPass' })
 
+  const confirmPlay = () => {
+    if (!selectedCard) return
+    play({ type: 'playCard', card: selectedCard })
+    setSelectedKey(null)
+  }
   const onSelect = (card: (typeof view.hand)[number]) => {
     const key = cardKey(card)
     if (key === selectedKey) {
-      play({ type: 'playCard', card })
-      setSelectedKey(null)
+      confirmPlay()
       return
     }
     setSelectedKey(key)
@@ -40,12 +47,14 @@ export function Table() {
       </div>
       <Con table={view.table} />
       <ActionBar
-        yourTurn={isYourTurn(view)}
-        onShukh={() => play({ type: 'claimShukh', target: view.turn, code: 2 })}
-        onOneCard={() => {
-          /* полноценно — Task 5 */
-        }}
+        canConfirm={canConfirm}
+        onConfirm={confirmPlay}
+        canTakeBottom={canTakeBottom}
         onTakeBottom={() => play({ type: 'takeBottomAndPass' })}
+        canShukh={false}
+        onShukh={() => {}}
+        owesOneCard={false}
+        onOneCard={() => {}}
       />
       <Hand
         cards={view.hand}
