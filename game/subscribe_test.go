@@ -16,7 +16,7 @@ func TestSubscribeReceivesFanout(t *testing.T) {
 	<-ch // drain the initial snapshot Subscribe delivers
 	// Directly exercise fanout with a synthetic event.
 	s.mu.Lock()
-	s.fanout(map[PlayerID][]engine.Event{"h": {engine.OneCardDeclared{Seat: 0}}})
+	s.fanout([]engine.Event{engine.OneCardDeclared{Seat: 0}})
 	s.mu.Unlock()
 	select {
 	case up := <-ch:

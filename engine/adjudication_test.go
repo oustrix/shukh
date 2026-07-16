@@ -3,8 +3,9 @@ package engine
 import "testing"
 
 // playingState builds a minimal gates-closed 3-seat Playing state with the given
-// hand sizes, for adjudication unit tests. Cards are arbitrary distinct spades —
-// the adjudication path never inspects card identity, only counts.
+// hand sizes, for adjudication unit tests. Cards are dealt off a canonical deck
+// (NewDeck) in seat order and the remainder goes to the discard, so I-1 holds for
+// any sizes; the adjudication path never inspects card identity, only counts.
 func playingState(t *testing.T, sizes map[SeatID]int) State {
 	t.Helper()
 	s := State{
@@ -18,21 +19,15 @@ func playingState(t *testing.T, sizes map[SeatID]int) State {
 		OwesOneCard:   map[SeatID]bool{},
 		ShukhTakeable: map[SeatID]bool{},
 	}
-	rank := Rank(6) // Start at 6 (lowest for 36-card deck)
-	// Add dealt cards to hands
-	for seat, n := range sizes {
-		for i := 0; i < n; i++ {
-			s.Hands[seat] = append(s.Hands[seat], Card{Suit: Spades, Rank: rank})
-			rank++
+	deck := NewDeck(s.Rules)
+	i := 0
+	for _, seat := range s.Seats {
+		for j := 0; j < sizes[seat]; j++ {
+			s.Hands[seat] = append(s.Hands[seat], deck[i])
+			i++
 		}
 	}
-	// Fill remaining cards into Discard to satisfy I-1 (card conservation)
-	// Use all suits to cover all 36 cards
-	for suit := Suit(Hearts); suit <= Clubs; suit++ {
-		for r := Rank(6); r <= Ace; r++ {
-			s.Discard = append(s.Discard, Card{Suit: suit, Rank: r})
-		}
-	}
+	s.Discard = append(s.Discard, deck[i:]...) // remainder keeps every card present once (I-1)
 	return s
 }
 

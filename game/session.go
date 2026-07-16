@@ -59,7 +59,7 @@ type Session struct {
 
 	state engine.State // authoritative; valid once stage >= Playing
 
-	subs map[PlayerID]*subscriber // populated in Task 9
+	subs map[PlayerID]chan Update // push channels, one per active subscriber
 }
 
 // NewSession creates a lobby seated by the host (seat 0, the eventual shuffler R-4.7).
@@ -70,7 +70,7 @@ func NewSession(cfg Config, host PlayerID, hostName string) *Session {
 		stage: Lobby,
 		order: []PlayerID{host},
 		names: map[PlayerID]string{host: hostName},
-		subs:  map[PlayerID]*subscriber{},
+		subs:  map[PlayerID]chan Update{},
 	}
 }
 

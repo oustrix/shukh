@@ -10,15 +10,12 @@ import "github.com/oustrix/shukh/engine"
 func (s *Session) Submit(id PlayerID, a engine.Action) ([]engine.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.stage != Playing {
-		if _, ok := s.seatOf(id); !ok {
-			return nil, ErrUnknownPlayer
-		}
-		return nil, ErrNotPlaying
-	}
 	seat, ok := s.seatOf(id)
 	if !ok {
 		return nil, ErrUnknownPlayer
+	}
+	if s.stage != Playing {
+		return nil, ErrNotPlaying
 	}
 	if err := s.authorize(seat, a); err != nil {
 		return nil, err
@@ -36,11 +33,7 @@ func (s *Session) Submit(id PlayerID, a engine.Action) ([]engine.Event, error) {
 	if ns.Phase == engine.Finished {
 		s.stage = Finished
 	}
-	perSeat := map[PlayerID][]engine.Event{}
-	for _, pid := range s.order {
-		perSeat[pid] = events
-	}
-	s.fanout(perSeat)
+	s.fanout(events)
 	return events, nil
 }
 

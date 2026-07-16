@@ -30,14 +30,14 @@ func (s *Session) roster() []SeatMeta {
 	return out
 }
 
-// project builds an Update for id carrying the given events. Caller holds s.mu and
-// has verified id is seated.
-func (s *Session) project(id PlayerID, events []engine.Event) Update {
+// project builds an Update for id from a pre-built roster and the given events.
+// Caller holds s.mu and has verified id is seated. roster is shared read-only
+// across every Update of one change, so the caller builds it once (see fanout).
+func (s *Session) project(id PlayerID, roster []SeatMeta, events []engine.Event) Update {
 	seat, _ := s.seatOf(id)
 	up := Update{
 		Stage:  s.stage,
-		Roster: s.roster(),
-		Legal:  nil,
+		Roster: roster,
 		Events: events,
 	}
 	if s.stage != Lobby {
@@ -56,5 +56,5 @@ func (s *Session) Snapshot(id PlayerID) (Update, error) {
 	if _, ok := s.seatOf(id); !ok {
 		return Update{}, ErrUnknownPlayer
 	}
-	return s.project(id, nil), nil
+	return s.project(id, s.roster(), nil), nil
 }

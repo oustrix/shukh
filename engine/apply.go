@@ -376,12 +376,28 @@ func (s State) clone() State {
 	return ns
 }
 
-// gatesClosed reports whether no catch-window or payment gate is open — i.e. the
-// game is in a normal position where turn-actions and fresh social actions are
-// available (§15.8: at most one of Unsettled/Pending is active at a time).
-func (s State) gatesClosed() bool {
-	return s.Unsettled == nil && s.Pending == nil && s.Adjudication == nil
+// openGates counts the adjudication devices currently open (§15.8): the Middle
+// catch-window (Unsettled), the §8 payment gate (Pending), and the R-8.6 vote
+// (Adjudication). At most one may be open at a time; gatesClosed and the §15.8
+// invariant both derive from this single enumeration of the gate fields.
+func (s State) openGates() int {
+	n := 0
+	if s.Unsettled != nil {
+		n++
+	}
+	if s.Pending != nil {
+		n++
+	}
+	if s.Adjudication != nil {
+		n++
+	}
+	return n
 }
+
+// gatesClosed reports whether no catch-window, payment gate, or R-8.6 vote is open
+// — i.e. the game is in a normal position where turn-actions and fresh social
+// actions are available (§15.8).
+func (s State) gatesClosed() bool { return s.openGates() == 0 }
 
 // liveCount is the number of players still in the game (R-5.5.1).
 func (s State) liveCount() int {
