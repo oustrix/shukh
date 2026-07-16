@@ -72,6 +72,14 @@ type Vote struct {
 	Support bool
 }
 
+// CloseVote force-resolves the open R-8.6 Adjudication NOW with whatever ballots
+// have been cast (L2-1): a table majority backing the challenge (support*2 > n)
+// moves the penalty onto the claimant as Ш-8, otherwise the ШУХ is confirmed on the
+// target; a missing ballot is simply not counted as «против ШУХа». It is a system
+// action — issued by the Layer-2 vote timer, never surfaced to a player — and a
+// harmless no-op when no vote is open.
+type CloseVote struct{}
+
 func (PlayCard) isAction()          {}
 func (DiscardWest) isAction()       {}
 func (TakeBottomAndPass) isAction() {}
@@ -84,3 +92,4 @@ func (AskCount) isAction()          {}
 func (AskAboutWest) isAction()      {}
 func (ClaimSubjective) isAction()   {}
 func (Vote) isAction()              {}
+func (CloseVote) isAction()         {}

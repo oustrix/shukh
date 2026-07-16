@@ -170,3 +170,91 @@ func TestGatesAreMutuallyExclusive(t *testing.T) {
 		t.Fatal("CheckInvariants must reject two open gates at once (§15.8)")
 	}
 }
+
+func TestCloseVotePartialTurnoutConfirmsTarget(t *testing.T) {
+	s := playingState(t, map[SeatID]int{0: 3, 1: 3, 2: 3})
+	ns, _, err := Apply(s, ClaimSubjective{Claimant: 1, Target: 0, Code: Sh6})
+	if err != nil {
+		t.Fatalf("claim rejected: %v", err)
+	}
+	// one lone «против ШУХа» ballot — far short of a table majority.
+	ns, _, err = Apply(ns, Vote{Voter: 2, Support: true})
+	if err != nil {
+		t.Fatalf("vote rejected: %v", err)
+	}
+	if ns.Adjudication == nil {
+		t.Fatal("a single ballot must not auto-resolve a 3-seat vote")
+	}
+	ns, events, err := Apply(ns, CloseVote{})
+	if err != nil {
+		t.Fatalf("CloseVote rejected: %v", err)
+	}
+	if ns.Adjudication != nil {
+		t.Fatal("CloseVote must clear the Adjudication")
+	}
+	assertResolved(t, events, false) // 1 of 3 support ⇒ not overturned
+	if ns.Pending == nil || ns.Pending.Offender != 0 {
+		t.Fatalf("expected §8 payment gate confirming the ШУХ on target 0, got %+v", ns.Pending)
+	}
+}
+
+func TestCloseVoteEarlyMajorityFlipsToClaimant(t *testing.T) {
+	s := playingState(t, map[SeatID]int{0: 3, 1: 3, 2: 3})
+	ns, _, err := Apply(s, ClaimSubjective{Claimant: 1, Target: 0, Code: Sh6})
+	if err != nil {
+		t.Fatalf("claim rejected: %v", err)
+	}
+	// two «против ШУХа» ballots — a table majority (2 of 3) reached before full turnout.
+	ns, _, err = Apply(ns, Vote{Voter: 0, Support: true})
+	if err != nil {
+		t.Fatalf("vote 0 rejected: %v", err)
+	}
+	ns, _, err = Apply(ns, Vote{Voter: 2, Support: true})
+	if err != nil {
+		t.Fatalf("vote 2 rejected: %v", err)
+	}
+	if ns.Adjudication == nil {
+		t.Fatal("with seat 1 not yet voted the 3-seat vote must still be open")
+	}
+	ns, events, err := Apply(ns, CloseVote{})
+	if err != nil {
+		t.Fatalf("CloseVote rejected: %v", err)
+	}
+	assertResolved(t, events, true) // 2 of 3 support ⇒ overturned
+	if ns.Pending == nil || ns.Pending.Offender != 1 {
+		t.Fatalf("expected Ш-8 payment gate on claimant 1, got %+v", ns.Pending)
+	}
+}
+
+func TestCloseVoteZeroVotesConfirmsTarget(t *testing.T) {
+	s := playingState(t, map[SeatID]int{0: 3, 1: 3, 2: 3})
+	ns, _, err := Apply(s, ClaimSubjective{Claimant: 1, Target: 0, Code: Sh6})
+	if err != nil {
+		t.Fatalf("claim rejected: %v", err)
+	}
+	ns, events, err := Apply(ns, CloseVote{})
+	if err != nil {
+		t.Fatalf("CloseVote rejected: %v", err)
+	}
+	if ns.Adjudication != nil {
+		t.Fatal("CloseVote must clear the Adjudication")
+	}
+	assertResolved(t, events, false) // no support at all ⇒ confirmed on target
+	if ns.Pending == nil || ns.Pending.Offender != 0 {
+		t.Fatalf("expected §8 payment gate on target 0, got %+v", ns.Pending)
+	}
+}
+
+func TestCloseVoteNoAdjudicationIsNoop(t *testing.T) {
+	s := playingState(t, map[SeatID]int{0: 3, 1: 3, 2: 3})
+	ns, events, err := Apply(s, CloseVote{})
+	if err != nil {
+		t.Fatalf("CloseVote with no open vote must not error, got %v", err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("no-op CloseVote must emit no events, got %+v", events)
+	}
+	if ns.Adjudication != nil || ns.Pending != nil {
+		t.Fatalf("no-op CloseVote must not open any gate, got adj=%+v pending=%+v", ns.Adjudication, ns.Pending)
+	}
+}

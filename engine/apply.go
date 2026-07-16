@@ -172,6 +172,13 @@ func Apply(s State, a Action) (State, []Event, error) {
 		if len(ns.Adjudication.Votes) == len(ns.Seats) {
 			ns.resolveAdjudication(&events)
 		}
+	case CloseVote:
+		// Force-resolve with the ballots present (L2-1). Missing votes are simply not
+		// tallied as «против ШУХа», so the R-8.6 formula (support*2 > n) is unchanged.
+		// No open vote → harmless no-op: the clone is returned untouched, events nil.
+		if ns.Adjudication != nil {
+			ns.resolveAdjudication(&events)
+		}
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -215,6 +222,13 @@ func isLegal(s State, a Action) bool {
 			s.Live[act.Claimant] && s.Live[act.Target] && act.Claimant != act.Target
 	case Vote:
 		return s.Adjudication != nil && s.voterEligible(act.Voter) && !s.hasVoted(act.Voter)
+	case CloseVote:
+		// A system resolution primitive (L2-1), never enumerated by LegalActions. It
+		// is always permitted to reach Apply: with an open vote it resolves it with a
+		// partial tally, with none it is a harmless no-op (the Apply branch below
+		// guards on Adjudication). Design §8.1/§9 requires the closed case to be a
+		// no-op, not an error — hence unconditional true rather than `Adjudication != nil`.
+		return true
 	default:
 		return slices.Contains(LegalActions(s, s.Turn), a)
 	}
