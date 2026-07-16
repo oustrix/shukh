@@ -61,5 +61,12 @@ func CheckInvariants(s State) error {
 			}
 		}
 	}
+
+	// §15.8: at most one adjudication device is open at a time (catch-window,
+	// payment gate, or R-8.6 vote) — they are enacted and cleared serially.
+	if open := s.openGates(); open > 1 {
+		return fmt.Errorf("engine: §15.8 violated: %d adjudication gates open at once", open)
+	}
+
 	return nil
 }

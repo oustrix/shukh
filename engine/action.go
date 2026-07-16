@@ -54,6 +54,24 @@ type DiscardWest struct{}
 // assesses Ш-12 (skip + discard obligation). Actor-agnostic (P-1).
 type AskAboutWest struct{ Target SeatID }
 
+// ClaimSubjective raises a subjective ШУХ (Ш-6 «завис» / Ш-9 «зря крикнул» / Ш-10
+// «небрежность») against Target, opening an R-8.6 table vote. Claimant carries the
+// raising seat (P-1). No penalty applies until the vote resolves (D-10: subjective
+// ШУХи go to предъявление+голосование). Legal only with all gates closed.
+type ClaimSubjective struct {
+	Claimant SeatID
+	Target   SeatID
+	Code     ShukhCode
+}
+
+// Vote casts Voter's ballot in the open R-8.6 Adjudication. Support == true backs
+// the challenge (the ШУХ is bogus → move it to the claimant as Ш-8). Any seat votes
+// once (R-8.9, finished players included); on full turnout the vote auto-resolves.
+type Vote struct {
+	Voter   SeatID
+	Support bool
+}
+
 func (PlayCard) isAction()          {}
 func (DiscardWest) isAction()       {}
 func (TakeBottomAndPass) isAction() {}
@@ -64,3 +82,5 @@ func (TakeShukhCards) isAction()    {}
 func (DeclareOneCard) isAction()    {}
 func (AskCount) isAction()          {}
 func (AskAboutWest) isAction()      {}
+func (ClaimSubjective) isAction()   {}
+func (Vote) isAction()              {}

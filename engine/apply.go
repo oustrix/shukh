@@ -159,6 +159,19 @@ func Apply(s State, a Action) (State, []Event, error) {
 		// isLegal now guarantees Target holds 6(2)♥ (R-9.4.2), so this always assesses;
 		// assessShukh latches Endgame.Asked for Ш-12 (R-9.4.2/R-9.4.3).
 		ns.assessShukh(act.Target, Sh12, &events)
+	case ClaimSubjective:
+		ns.Adjudication = &Adjudication{
+			Claimant: act.Claimant,
+			Target:   act.Target,
+			Code:     act.Code,
+			Votes:    map[SeatID]bool{},
+		}
+		events = append(events, VoteOpened{Claimant: act.Claimant, Target: act.Target, Code: act.Code})
+	case Vote:
+		ns.Adjudication.Votes[act.Voter] = act.Support
+		if len(ns.Adjudication.Votes) == len(ns.Seats) {
+			ns.resolveAdjudication(&events)
+		}
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -197,6 +210,11 @@ func isLegal(s State, a Action) bool {
 		// dodge Ш-12 — no info leak in the 2-player endgame (you see your own hand).
 		return s.gatesClosed() && s.Endgame.Active && !s.Endgame.Asked && s.Live[act.Target] &&
 			slices.ContainsFunc(s.Hands[act.Target], s.Rules.IsLowestHeart)
+	case ClaimSubjective:
+		return s.gatesClosed() && act.Code.isSubjective() &&
+			s.Live[act.Claimant] && s.Live[act.Target] && act.Claimant != act.Target
+	case Vote:
+		return s.Adjudication != nil && s.voterEligible(act.Voter) && !s.hasVoted(act.Voter)
 	default:
 		return slices.Contains(LegalActions(s, s.Turn), a)
 	}
@@ -218,6 +236,30 @@ func (s *State) assessShukh(offender SeatID, code ShukhCode, events *[]Event) {
 		return
 	}
 	s.Pending = &Payment{Offender: offender, Owed: owed, Skip: code.skips(), ThenDiscardWest: code.obligesDiscard()}
+}
+
+// resolveAdjudication tallies a fully-voted R-8.6 Adjudication (§8, R-8.6): a table
+// majority backing the challenge (support*2 > n) moves the penalty onto the
+// claimant as Ш-8, otherwise the ШУХ is confirmed on the target. Either way it
+// clears the vote and enacts the outcome through the shared §8 machinery
+// (assessShukh → payment gate or immediate effect). Precondition: Adjudication != nil
+// and every seat has voted.
+func (s *State) resolveAdjudication(events *[]Event) {
+	adj := s.Adjudication
+	support := 0
+	for _, v := range adj.Votes {
+		if v {
+			support++
+		}
+	}
+	overturned := support*2 > len(s.Seats)
+	s.Adjudication = nil
+	*events = append(*events, VoteResolved{Code: adj.Code, Overturned: overturned})
+	if overturned {
+		s.assessShukh(adj.Claimant, Sh8, events)
+	} else {
+		s.assessShukh(adj.Target, adj.Code, events)
+	}
 }
 
 // owedGivers lists the seats obligated to pay the offender, clockwise from him:
@@ -323,13 +365,39 @@ func (s State) clone() State {
 		cp := *s.Unsettled // Prev is a snapshot we never mutate; sharing its maps is safe
 		ns.Unsettled = &cp
 	}
+	if s.Adjudication != nil {
+		cp := *s.Adjudication
+		cp.Votes = make(map[SeatID]bool, len(s.Adjudication.Votes))
+		for k, v := range s.Adjudication.Votes {
+			cp.Votes[k] = v
+		}
+		ns.Adjudication = &cp
+	}
 	return ns
 }
 
-// gatesClosed reports whether no catch-window or payment gate is open — i.e. the
-// game is in a normal position where turn-actions and fresh social actions are
-// available (§15.8: at most one of Unsettled/Pending is active at a time).
-func (s State) gatesClosed() bool { return s.Unsettled == nil && s.Pending == nil }
+// openGates counts the adjudication devices currently open (§15.8): the Middle
+// catch-window (Unsettled), the §8 payment gate (Pending), and the R-8.6 vote
+// (Adjudication). At most one may be open at a time; gatesClosed and the §15.8
+// invariant both derive from this single enumeration of the gate fields.
+func (s State) openGates() int {
+	n := 0
+	if s.Unsettled != nil {
+		n++
+	}
+	if s.Pending != nil {
+		n++
+	}
+	if s.Adjudication != nil {
+		n++
+	}
+	return n
+}
+
+// gatesClosed reports whether no catch-window, payment gate, or R-8.6 vote is open
+// — i.e. the game is in a normal position where turn-actions and fresh social
+// actions are available (§15.8).
+func (s State) gatesClosed() bool { return s.openGates() == 0 }
 
 // liveCount is the number of players still in the game (R-5.5.1).
 func (s State) liveCount() int {
