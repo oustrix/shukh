@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { isYourTurn } from '../../contract/types'
-import { useGameStore, selectSeats, selectView } from '../../store/game'
+import { cardKey, isCardPlayable, isYourTurn } from '../../contract/types'
+import { useGameStore, selectSeats, selectView, selectLegal } from '../../store/game'
 import { Hand } from '../table/Hand'
 import { Con } from '../table/Con'
 import { OpponentSeat } from '../table/OpponentSeat'
@@ -10,13 +10,26 @@ import styles from '../table/Table.module.css'
 export function Table() {
   const view = useGameStore(selectView)
   const seats = useGameStore(selectSeats)
+  const legal = useGameStore(selectLegal)
   const play = useGameStore((s) => s.play)
-  const [selected, setSelected] = useState<number | null>(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
   if (!view) return <div className={styles.con}>Загрузка стола…</div>
 
   const nameBySeat = new Map(seats.map((s) => [s.seat, s.name]))
   const nameOf = (seat: number) => nameBySeat.get(seat) ?? `Игрок ${seat}`
+
+  const playableKeys = new Set(view.hand.filter((c) => isCardPlayable(legal, c)).map(cardKey))
+
+  const onSelect = (card: (typeof view.hand)[number]) => {
+    const key = cardKey(card)
+    if (key === selectedKey) {
+      play({ type: 'playCard', card })
+      setSelectedKey(null)
+      return
+    }
+    setSelectedKey(key)
+  }
 
   return (
     <div className={styles.table}>
@@ -30,17 +43,15 @@ export function Table() {
         yourTurn={isYourTurn(view)}
         onShukh={() => play({ type: 'claimShukh', target: view.turn, code: 2 })}
         onOneCard={() => {
-          /* объявление «Одна карта!» (§6) — заглушка до Спеца 2 */
+          /* полноценно — Task 5 */
         }}
         onTakeBottom={() => play({ type: 'takeBottomAndPass' })}
       />
       <Hand
         cards={view.hand}
-        selectedIndex={selected}
-        onSelect={(i) => {
-          setSelected(i)
-          play({ type: 'playCard', card: view.hand[i] })
-        }}
+        selectedKey={selectedKey}
+        playableKeys={playableKeys}
+        onSelect={onSelect}
       />
     </div>
   )

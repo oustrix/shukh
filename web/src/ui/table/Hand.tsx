@@ -5,22 +5,28 @@ import styles from './Table.module.css'
 
 interface HandProps {
   cards: CardT[]
-  selectedIndex: number | null
-  onSelect: (index: number) => void
+  selectedKey: string | null
+  playableKeys: Set<string>
+  onSelect: (card: CardT) => void
 }
 
-export function Hand({ cards, selectedIndex, onSelect }: HandProps) {
+export function Hand({ cards, selectedKey, playableKeys, onSelect }: HandProps) {
   return (
     <div className={styles.hand} data-testid="hand">
       <AnimatePresence>
-        {cards.map((c, i) => (
-          <Card
-            key={cardKey(c)}
-            card={c}
-            selected={i === selectedIndex}
-            onClick={() => onSelect(i)}
-          />
-        ))}
+        {cards.map((c) => {
+          const key = cardKey(c)
+          const playable = playableKeys.has(key)
+          return (
+            <Card
+              key={key}
+              card={c}
+              selected={key === selectedKey}
+              dimmed={!playable}
+              onClick={playable ? () => onSelect(c) : undefined}
+            />
+          )
+        })}
       </AnimatePresence>
     </div>
   )

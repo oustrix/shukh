@@ -10,7 +10,7 @@ const hand: Card[] = [
 const table: TableCard[] = [{ card: { suit: '♠', rank: 8 }, by: 1 }]
 
 test('Hand под AnimatePresence рендерит все карты руки', () => {
-  render(<Hand cards={hand} selectedIndex={null} onSelect={() => {}} />)
+  render(<Hand cards={hand} selectedKey={null} playableKeys={new Set()} onSelect={() => {}} />)
   expect(screen.getAllByTestId('card-face')).toHaveLength(2)
 })
 

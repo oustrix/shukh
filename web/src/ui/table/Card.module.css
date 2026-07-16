@@ -20,3 +20,10 @@
 .black text {
   fill: var(--suit-black);
 }
+.dimmed {
+  opacity: 0.4;
+}
+.clickable:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
