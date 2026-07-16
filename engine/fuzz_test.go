@@ -15,8 +15,11 @@ import (
 // (a non-terminating lifecycle), not an expected outcome.
 func TestFuzzGamesTerminate(t *testing.T) {
 	const (
-		games    = 200
-		maxSteps = 5000
+		games = 200
+		// Budget with margin over the observed max (5506, seed 84): the owed-penalty
+		// absorb rule (R-9.1) lengthens games — a seat must play its ШУХ-cards off
+		// before leaving. Exceeding this is a bug (non-terminating lifecycle).
+		maxSteps = 12000
 	)
 	deckSizes := []int{engine.Deck36, engine.Deck52}
 	playerCounts := []int{2, 3, 4, 6}
@@ -85,8 +88,10 @@ func TestFuzzGamesTerminate(t *testing.T) {
 // an open catch-window). Games must terminate with a valid ranking (§15.10).
 func TestFuzzMiddleGamesTerminate(t *testing.T) {
 	const (
-		games    = 200
-		maxSteps = 8000
+		games = 200
+		// Margin over the observed Middle max (3064, seed 124); the owed-penalty
+		// absorb rule (R-9.1) lengthens games. Matches the Guard budget for parity.
+		maxSteps = 12000
 	)
 	deckSizes := []int{engine.Deck36, engine.Deck52}
 	playerCounts := []int{2, 3, 4, 6}

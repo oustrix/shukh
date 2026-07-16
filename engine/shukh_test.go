@@ -13,6 +13,31 @@ func middle(hands map[SeatID][]Card, table []TableCard, turn SeatID) State {
 	return s
 }
 
+func TestOwedPenaltyAbsorbedBeforeExit(t *testing.T) {
+	// R-9.1 (refined): a penalty must bite — a seat that would exit while still
+	// owing ШУХ-cards is forced to absorb them into hand and play them off first.
+	// Seat 2 is handless, its only con card is the bottom (R-5.9), and it owes a
+	// ШУХ-card. Seat 0 takes the bottom → seat 2 would exit (empty hand, no con
+	// card), but its owed pile is absorbed into hand instead, so it stays live.
+	s := playing(map[SeatID][]Card{
+		0: {{Diamonds, 6}},
+		1: {{Clubs, 8}},
+		2: {},
+	}, []TableCard{{Card: Card{Spades, 8}, By: 2}}, 0)
+	s.Shukh[2] = []Card{{Clubs, 9}}
+	s.ShukhTakeable[2] = true
+
+	ns, events, err := Apply(s, TakeBottomAndPass{})
+	require.NoError(t, err)
+	require.True(t, ns.Live[2])                               // not out — penalty absorbed
+	require.ElementsMatch(t, []Card{{Clubs, 9}}, ns.Hands[2]) // owed pile now in hand
+	require.Empty(t, ns.Shukh[2])                             // pile absorbed
+	require.False(t, ns.ShukhTakeable[2])
+	require.NotContains(t, ns.Finish, SeatID(2))
+	require.Equal(t, Playing, ns.Phase) // 3 still live
+	require.Contains(t, events, ShukhCardsTaken{Seat: 2, Cards: []Card{{Clubs, 9}}})
+}
+
 func TestApplyMiddleQueenZahodSetsUnsettled(t *testing.T) {
 	// Middle, empty con: seat 0 заходит with Дама♥ — allowed but нелегально. It
 	// lands on the table, Unsettled snapshots the pre-action state, and the turn

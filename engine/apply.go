@@ -411,16 +411,31 @@ func (s *State) closeCon(closer SeatID, events *[]Event) {
 
 // resolveExits applies R-9.1 exits for the seats in `order` (clockwise from the
 // seat whose action emptied/changed the con), then checks termination
-// (R-10.1/R-10.1.1). A live seat exits when its hand is empty and it has no card
-// in the open con. When one or zero players remain, the game ends and the loser
-// (if any) is appended last to Finish.
+// (R-10.1/R-10.1.1). A live seat exits when its hand is empty and it has no card in
+// the open con — UNLESS it still owes ШУХ-cards: a penalty must bite (R-9.1), so at
+// the moment it would leave it is forced to absorb its owed pile into hand (R-8.3)
+// and play those cards off first. When one or zero players remain, the game ends
+// and the loser (if any) is appended to Finish.
 func (s *State) resolveExits(order []SeatID, events *[]Event) {
 	for _, seat := range order {
-		if s.Live[seat] && len(s.Hands[seat]) == 0 && !s.handInCon(seat) {
-			s.Live[seat] = false
-			s.Finish = append(s.Finish, seat)
-			*events = append(*events, PlayerFinished{Seat: seat, Place: len(s.Finish)})
+		if !s.Live[seat] || len(s.Hands[seat]) != 0 || s.handInCon(seat) {
+			continue
 		}
+		if pile := s.Shukh[seat]; len(pile) > 0 {
+			// Owes a penalty: absorb it into hand instead of exiting, then play it
+			// off before leaving (R-9.1/R-8.3). Forced here — a would-be-exiting seat
+			// cannot dodge the penalty by emptying its hand first. This deliberately
+			// bypasses the ShukhTakeable timing (R-8.3): the absorb is tied to the
+			// exit moment, not to con closure (R-9.1.1).
+			s.Shukh[seat] = nil
+			s.ShukhTakeable[seat] = false
+			s.Hands[seat] = append(s.Hands[seat], pile...)
+			*events = append(*events, ShukhCardsTaken{Seat: seat, Cards: pile})
+			continue
+		}
+		s.Live[seat] = false
+		s.Finish = append(s.Finish, seat)
+		*events = append(*events, PlayerFinished{Seat: seat, Place: len(s.Finish)})
 	}
 	if s.liveCount() == 2 {
 		s.Endgame.Active = true // §9.2: 6(2)♥ now подлежит сбросу (R-9.3)
