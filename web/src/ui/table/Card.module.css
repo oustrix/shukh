@@ -20,7 +20,3 @@
 .black text {
   fill: var(--suit-black);
 }
-.selected {
-  transform: translateY(-10px);
-  transition: transform 0.12s ease;
-}
