@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/oustrix/shukh/engine"
+	"github.com/oustrix/shukh/shuffle"
 )
 
 // PlayerID is a stable, opaque identity handed in by Layer 2. Session only stores
@@ -127,6 +128,54 @@ func (s *Session) seatOf(id PlayerID) (engine.SeatID, bool) {
 		}
 	}
 	return 0, false
+}
+
+// SetConfig changes the match config before the game starts. Host + Lobby only.
+func (s *Session) SetConfig(host PlayerID, cfg Config) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stage != Lobby {
+		return ErrNotLobby
+	}
+	if host != s.host {
+		return ErrNotHost
+	}
+	s.cfg = cfg
+	return nil
+}
+
+// Start deals a fresh game: it builds the engine.Config from the roster (join order
+// = clockwise seating, R-2.13), shuffles a canonical deck by seed at the D-11
+// boundary, and runs engine.NewGame. Host + Lobby + ≥2 players only. On success the
+// stage becomes Playing (or Finished if the game somehow ends immediately).
+func (s *Session) Start(host PlayerID, seed int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stage != Lobby {
+		return ErrNotLobby
+	}
+	if host != s.host {
+		return ErrNotHost
+	}
+	if len(s.order) < 2 {
+		return ErrTooFewPlayers
+	}
+	players := make([]engine.Player, len(s.order))
+	for i, id := range s.order {
+		players[i] = engine.Player{Name: s.names[id]}
+	}
+	ecfg := engine.Config{Rules: s.cfg.Rules, Mode: s.cfg.Mode, Players: players}
+	deck := shuffle.Deck(engine.NewDeck(s.cfg.Rules), seed)
+	st, _, err := engine.NewGame(ecfg, deck)
+	if err != nil {
+		return err
+	}
+	s.state = st
+	s.stage = Playing
+	if st.Phase == engine.Finished {
+		s.stage = Finished
+	}
+	return nil
 }
 
 // temporary stub — replaced in Task 9 (subscribe.go)

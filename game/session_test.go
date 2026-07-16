@@ -47,3 +47,39 @@ func TestLeaveInLobby(t *testing.T) {
 		t.Fatal("left player must lose its seat in Lobby")
 	}
 }
+
+func TestStartRequiresHostAndTwoPlayers(t *testing.T) {
+	s := NewSession(cfg36(), "h", "Host")
+	if err := s.Start("h", 1); err != ErrTooFewPlayers {
+		t.Fatalf("solo start: want ErrTooFewPlayers, got %v", err)
+	}
+	_ = s.Join("p2", "Bob")
+	if err := s.Start("p2", 1); err != ErrNotHost {
+		t.Fatalf("non-host start: want ErrNotHost, got %v", err)
+	}
+	if err := s.Start("h", 42); err != nil {
+		t.Fatalf("host start rejected: %v", err)
+	}
+	if s.Stage() != Playing {
+		t.Fatalf("after Start stage must be Playing, got %v", s.Stage())
+	}
+	if err := s.Start("h", 42); err != ErrNotLobby {
+		t.Fatalf("double start: want ErrNotLobby, got %v", err)
+	}
+}
+
+func TestSetConfigHostLobbyOnly(t *testing.T) {
+	s := NewSession(cfg36(), "h", "Host")
+	c52 := Config{Rules: engine.RuleSet{DeckSize: engine.Deck52}, Mode: engine.Guard}
+	if err := s.SetConfig("p2", c52); err != ErrNotHost {
+		t.Fatalf("non-host SetConfig: want ErrNotHost, got %v", err)
+	}
+	if err := s.SetConfig("h", c52); err != nil {
+		t.Fatalf("host SetConfig rejected: %v", err)
+	}
+	_ = s.Join("p2", "Bob")
+	_ = s.Start("h", 7)
+	if err := s.SetConfig("h", cfg36()); err != ErrNotLobby {
+		t.Fatalf("SetConfig after start: want ErrNotLobby, got %v", err)
+	}
+}
