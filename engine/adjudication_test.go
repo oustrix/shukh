@@ -258,3 +258,23 @@ func TestCloseVoteNoAdjudicationIsNoop(t *testing.T) {
 		t.Fatalf("no-op CloseVote must not open any gate, got adj=%+v pending=%+v", ns.Adjudication, ns.Pending)
 	}
 }
+
+// TestCloseVoteNoAdjudicationDoesNotSettleUnsettled guards the no-op contract:
+// CloseVote is a system action and must never settle an open Ш-2/Ш-12 Middle
+// catch-window, even though Adjudication == nil. §15.8 guarantees Unsettled is
+// nil while a vote is actually open, so this only matters for the no-op path.
+func TestCloseVoteNoAdjudicationDoesNotSettleUnsettled(t *testing.T) {
+	s := playingState(t, map[SeatID]int{0: 3, 1: 3, 2: 3})
+	s.Unsettled = &Unsettled{Prev: s, Seat: 1, Code: Sh2}
+
+	ns, events, err := Apply(s, CloseVote{})
+	if err != nil {
+		t.Fatalf("CloseVote with no open vote must not error, got %v", err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("no-op CloseVote must emit no events, got %+v", events)
+	}
+	if ns.Unsettled == nil || ns.Unsettled.Seat != 1 || ns.Unsettled.Code != Sh2 {
+		t.Fatalf("no-op CloseVote must not settle the open catch-window, got %+v", ns.Unsettled)
+	}
+}

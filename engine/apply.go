@@ -31,8 +31,17 @@ func Apply(s State, a Action) (State, []Event, error) {
 
 	// A non-claim action taken while a catch-window is open settles it (R-1.4.1):
 	// the offending action «прижилось» and stays. ClaimShukh instead reverses it.
-	if _, isClaim := a.(ClaimShukh); !isClaim && ns.Unsettled != nil {
-		ns.Unsettled = nil
+	// CloseVote is a system action (not a player move) and must never settle a
+	// catch-window either: while a vote is genuinely open, §15.8 guarantees
+	// Unsettled == nil already, so this exclusion only matters for the no-op path
+	// (Adjudication == nil), keeping CloseVote harmless there per its contract.
+	switch a.(type) {
+	case ClaimShukh, CloseVote:
+		// don't settle
+	default:
+		if ns.Unsettled != nil {
+			ns.Unsettled = nil
+		}
 	}
 
 	// Pre-action hand sizes (§15.6), captured from the input s before any mutation,
