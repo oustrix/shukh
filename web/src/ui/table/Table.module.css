@@ -22,15 +22,6 @@
 .seatCount {
   opacity: 0.85;
 }
-.shukhBadge {
-  margin-top: 4px;
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: var(--radius);
-  background: var(--card-back);
-  color: var(--text);
-  font-size: 0.8em;
-}
 .con {
   display: flex;
   justify-content: center;
@@ -94,4 +85,34 @@
 .shukhCount {
   font-size: 0.8em;
   opacity: 0.85;
+}
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+.modal {
+  max-width: 320px;
+  padding: 20px;
+  text-align: center;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--felt-dark);
+  box-shadow: var(--shadow);
+}
+.voteList {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+}
+.voteOutcome {
+  font-weight: 700;
+  color: var(--accent);
+}
+.voteTallying {
+  opacity: 0.8;
 }
