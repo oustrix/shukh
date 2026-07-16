@@ -2,8 +2,9 @@ package server
 
 import crand "crypto/rand"
 
-// codeAlphabet is 32 unambiguous symbols — no O/0, I/1/L. 32 = 2^5, so masking a
-// byte to its low 5 bits selects a symbol without modulo bias.
+// codeAlphabet is 32 symbols: 2-9 and A-Z minus I and O (and no 0/1). L is kept
+// (not dropped) so the set totals exactly 32 = 2^5, letting rng()&0x1f pick a
+// symbol without modulo bias. L is the least confusable choice once I/1 are gone.
 const codeAlphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 
 const codeLen = 6
