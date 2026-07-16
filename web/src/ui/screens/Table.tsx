@@ -1,5 +1,11 @@
-import { useState } from 'react'
-import { cardKey, isCardPlayable, isLegal, isShukhTakeable } from '../../contract/types'
+import { useState, useEffect } from 'react'
+import {
+  cardKey,
+  isCardPlayable,
+  isLegal,
+  isShukhTakeable,
+  claimShukhInLegal,
+} from '../../contract/types'
 import { useGameStore, selectSeats, selectView, selectLegal } from '../../store/game'
 import { Hand } from '../table/Hand'
 import { Con } from '../table/Con'
@@ -14,6 +20,11 @@ export function Table() {
   const legal = useGameStore(selectLegal)
   const play = useGameStore((s) => s.play)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [announced, setAnnounced] = useState(false)
+  const handLen = view?.hand.length ?? 0
+  useEffect(() => {
+    if (handLen !== 1) setAnnounced(false)
+  }, [handLen])
 
   if (!view) return <div className={styles.con}>Загрузка стола…</div>
 
@@ -25,6 +36,8 @@ export function Table() {
   const canConfirm = selectedCard != null && isCardPlayable(legal, selectedCard)
   const canTakeBottom = isLegal(legal, { type: 'takeBottomAndPass' })
   const yourZoneTakeable = isShukhTakeable(legal, view.you)
+  const claim = claimShukhInLegal(legal)
+  const owesOneCard = (view.live[view.you] ?? false) && view.hand.length === 1 && !announced
 
   const confirmPlay = () => {
     if (!selectedCard) return
@@ -59,10 +72,10 @@ export function Table() {
         onConfirm={confirmPlay}
         canTakeBottom={canTakeBottom}
         onTakeBottom={() => play({ type: 'takeBottomAndPass' })}
-        canShukh={false}
-        onShukh={() => {}}
-        owesOneCard={false}
-        onOneCard={() => {}}
+        canShukh={claim != null}
+        onShukh={() => claim && play(claim)}
+        owesOneCard={owesOneCard}
+        onOneCard={() => setAnnounced(true)}
       />
       <Hand
         cards={view.hand}
