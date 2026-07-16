@@ -278,3 +278,55 @@ func TestCloseVoteNoAdjudicationDoesNotSettleUnsettled(t *testing.T) {
 		t.Fatalf("no-op CloseVote must not settle the open catch-window, got %+v", ns.Unsettled)
 	}
 }
+
+func TestVoteViewPopulatedAndSorted(t *testing.T) {
+	s := playingState(t, map[SeatID]int{0: 3, 1: 3, 2: 3})
+	ns, _, err := Apply(s, ClaimSubjective{Claimant: 1, Target: 0, Code: Sh6})
+	if err != nil {
+		t.Fatalf("claim rejected: %v", err)
+	}
+	// Cast two ballots out of ascending order (seat 2 then seat 0); a 3-seat vote
+	// stays open at two ballots.
+	ns, _, err = Apply(ns, Vote{Voter: 2, Support: false})
+	if err != nil {
+		t.Fatalf("vote 2 rejected: %v", err)
+	}
+	ns, _, err = Apply(ns, Vote{Voter: 0, Support: true})
+	if err != nil {
+		t.Fatalf("vote 0 rejected: %v", err)
+	}
+	v := View(ns, 1)
+	if v.Vote == nil {
+		t.Fatal("an open Adjudication must populate SeatView.Vote")
+	}
+	if v.Vote.Claimant != 1 || v.Vote.Target != 0 || v.Vote.Code != Sh6 {
+		t.Fatalf("wrong VoteView dispute: %+v", v.Vote)
+	}
+	if len(v.Vote.Voted) != 2 || v.Vote.Voted[0] != 0 || v.Vote.Voted[1] != 2 {
+		t.Fatalf("Voted must list who voted, ascending [0 2], got %v", v.Vote.Voted)
+	}
+}
+
+func TestVoteViewNilWithoutAdjudication(t *testing.T) {
+	s := playingState(t, map[SeatID]int{0: 3, 1: 3, 2: 3})
+	if v := View(s, 0); v.Vote != nil {
+		t.Fatalf("no Adjudication ⇒ SeatView.Vote must be nil, got %+v", v.Vote)
+	}
+}
+
+func TestVoteViewVotedIsACopy(t *testing.T) {
+	s := playingState(t, map[SeatID]int{0: 3, 1: 3, 2: 3})
+	ns, _, err := Apply(s, ClaimSubjective{Claimant: 1, Target: 0, Code: Sh6})
+	if err != nil {
+		t.Fatalf("claim rejected: %v", err)
+	}
+	ns, _, err = Apply(ns, Vote{Voter: 0, Support: true})
+	if err != nil {
+		t.Fatalf("vote rejected: %v", err)
+	}
+	v := View(ns, 1)
+	v.Vote.Voted[0] = 99 // mutate the returned slice
+	if again := View(ns, 1); again.Vote.Voted[0] != 0 {
+		t.Fatalf("View must return a fresh Voted slice; state leaked (%v)", again.Vote.Voted)
+	}
+}
