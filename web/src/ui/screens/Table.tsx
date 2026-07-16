@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { cardKey, isCardPlayable, isLegal } from '../../contract/types'
+import { cardKey, isCardPlayable, isLegal, isShukhTakeable } from '../../contract/types'
 import { useGameStore, selectSeats, selectView, selectLegal } from '../../store/game'
 import { Hand } from '../table/Hand'
 import { Con } from '../table/Con'
 import { OpponentSeat } from '../table/OpponentSeat'
+import { ShukhZone } from '../table/ShukhZone'
 import { ActionBar } from '../table/ActionBar'
 import styles from '../table/Table.module.css'
 
@@ -23,6 +24,7 @@ export function Table() {
   const selectedCard = view.hand.find((c) => cardKey(c) === selectedKey) ?? null
   const canConfirm = selectedCard != null && isCardPlayable(legal, selectedCard)
   const canTakeBottom = isLegal(legal, { type: 'takeBottomAndPass' })
+  const yourZoneTakeable = isShukhTakeable(legal, view.you)
 
   const confirmPlay = () => {
     if (!selectedCard) return
@@ -46,6 +48,12 @@ export function Table() {
         ))}
       </div>
       <Con table={view.table} />
+      <ShukhZone
+        count={view.shukhPending}
+        takeable={yourZoneTakeable}
+        onTake={() => play({ type: 'takeShukhCards', seat: view.you })}
+        label={`Ваша ШУХ-зона: ${view.shukhPending}`}
+      />
       <ActionBar
         canConfirm={canConfirm}
         onConfirm={confirmPlay}

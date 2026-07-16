@@ -1,4 +1,5 @@
 import type { OpponentView } from '../../contract/types'
+import { ShukhZone } from './ShukhZone'
 import styles from './Table.module.css'
 
 interface OpponentSeatProps {
@@ -11,11 +12,7 @@ export function OpponentSeat({ name, opponent }: OpponentSeatProps) {
     <div className={styles.seat} data-testid={`seat-${opponent.seat}`}>
       <div className={styles.seatName}>{name}</div>
       <div className={styles.seatCount}>🂠 {opponent.handCount}</div>
-      {opponent.shukhPending > 0 && (
-        <div className={styles.shukhBadge} data-testid="shukh-badge" title="ожидает ШУХ-карт">
-          ШУХ {opponent.shukhPending}
-        </div>
-      )}
+      <ShukhZone count={opponent.shukhPending} label={`ШУХ-зона ${name}: ${opponent.shukhPending}`} />
     </div>
   )
 }
