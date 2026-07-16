@@ -96,12 +96,30 @@ type WestDiscarded struct {
 	Seat SeatID
 }
 
+// VoteOpened is emitted when a subjective ШУХ is claimed and the table vote opens
+// (R-8.6): Claimant raised Code against Target.
+type VoteOpened struct {
+	Claimant SeatID
+	Target   SeatID
+	Code     ShukhCode
+}
+
+// VoteResolved is emitted when an R-8.6 vote resolves. Overturned == true means the
+// table backed the challenge and the ШУХ moved onto Claimant as Ш-8; false means
+// the ШУХ was confirmed on Target.
+type VoteResolved struct {
+	Code      ShukhCode
+	Overturned bool
+}
+
 func (ShukhAssessed) isEvent()   {}
 func (ActionReverted) isEvent()  {}
 func (ShukhPaid) isEvent()       {}
 func (ShukhCardsTaken) isEvent() {}
 func (OneCardDeclared) isEvent() {}
 func (WestDiscarded) isEvent()   {}
+func (VoteOpened) isEvent()      {}
+func (VoteResolved) isEvent()    {}
 
 func (GameStarted) isEvent()     {}
 func (CardPlayed) isEvent()      {}

@@ -25,3 +25,8 @@ func TestAdjudicationClosesGates(t *testing.T) {
 		t.Fatal("an open Adjudication must close the gates")
 	}
 }
+
+func TestVoteEventsAreEvents(t *testing.T) {
+	var _ Event = VoteOpened{Claimant: 0, Target: 1, Code: Sh6}
+	var _ Event = VoteResolved{Code: Sh6, Overturned: true}
+}
