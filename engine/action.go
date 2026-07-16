@@ -64,6 +64,14 @@ type ClaimSubjective struct {
 	Code     ShukhCode
 }
 
+// Vote casts Voter's ballot in the open R-8.6 Adjudication. Support == true backs
+// the challenge (the ШУХ is bogus → move it to the claimant as Ш-8). Any seat votes
+// once (R-8.9, finished players included); on full turnout the vote auto-resolves.
+type Vote struct {
+	Voter   SeatID
+	Support bool
+}
+
 func (PlayCard) isAction()          {}
 func (DiscardWest) isAction()       {}
 func (TakeBottomAndPass) isAction() {}
@@ -75,3 +83,4 @@ func (DeclareOneCard) isAction()    {}
 func (AskCount) isAction()          {}
 func (AskAboutWest) isAction()      {}
 func (ClaimSubjective) isAction()   {}
+func (Vote) isAction()              {}

@@ -12,6 +12,15 @@ func LegalActions(s State, seat SeatID) []Action {
 	if s.Phase == Finished {
 		return nil
 	}
+	// An open R-8.6 vote freezes the table (§15.8): the only legal action for any
+	// not-yet-voted eligible seat is to cast its ballot. ClaimSubjective is not
+	// enumerated — it is an always-available social button, validated on submit.
+	if s.Adjudication != nil {
+		if !s.voterEligible(seat) || s.hasVoted(seat) {
+			return nil
+		}
+		return []Action{Vote{Voter: seat, Support: true}, Vote{Voter: seat, Support: false}}
+	}
 	// A §8 payment gate: only the head payer acts, offering each of his non-last
 	// cards (R-8.1.1/I-2). All other seats have nothing to do until it closes.
 	if s.Pending != nil {

@@ -167,6 +167,11 @@ func Apply(s State, a Action) (State, []Event, error) {
 			Votes:    map[SeatID]bool{},
 		}
 		events = append(events, VoteOpened{Claimant: act.Claimant, Target: act.Target, Code: act.Code})
+	case Vote:
+		ns.Adjudication.Votes[act.Voter] = act.Support
+		if len(ns.Adjudication.Votes) == len(ns.Seats) {
+			ns.resolveAdjudication(&events)
+		}
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -208,6 +213,8 @@ func isLegal(s State, a Action) bool {
 	case ClaimSubjective:
 		return s.gatesClosed() && act.Code.isSubjective() &&
 			s.Live[act.Claimant] && s.Live[act.Target] && act.Claimant != act.Target
+	case Vote:
+		return s.Adjudication != nil && s.voterEligible(act.Voter) && !s.hasVoted(act.Voter)
 	default:
 		return slices.Contains(LegalActions(s, s.Turn), a)
 	}
@@ -229,6 +236,30 @@ func (s *State) assessShukh(offender SeatID, code ShukhCode, events *[]Event) {
 		return
 	}
 	s.Pending = &Payment{Offender: offender, Owed: owed, Skip: code.skips(), ThenDiscardWest: code.obligesDiscard()}
+}
+
+// resolveAdjudication tallies a fully-voted R-8.6 Adjudication (§8, R-8.6): a table
+// majority backing the challenge (support*2 > n) moves the penalty onto the
+// claimant as Ш-8, otherwise the ШУХ is confirmed on the target. Either way it
+// clears the vote and enacts the outcome through the shared §8 machinery
+// (assessShukh → payment gate or immediate effect). Precondition: Adjudication != nil
+// and every seat has voted.
+func (s *State) resolveAdjudication(events *[]Event) {
+	adj := s.Adjudication
+	support := 0
+	for _, v := range adj.Votes {
+		if v {
+			support++
+		}
+	}
+	overturned := support*2 > len(s.Seats)
+	s.Adjudication = nil
+	*events = append(*events, VoteResolved{Code: adj.Code, Overturned: overturned})
+	if overturned {
+		s.assessShukh(adj.Claimant, Sh8, events)
+	} else {
+		s.assessShukh(adj.Target, adj.Code, events)
+	}
 }
 
 // owedGivers lists the seats obligated to pay the offender, clockwise from him:

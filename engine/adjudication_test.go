@@ -86,3 +86,75 @@ func TestVoteEventsAreEvents(t *testing.T) {
 	var _ Event = VoteOpened{Claimant: 0, Target: 1, Code: Sh6}
 	var _ Event = VoteResolved{Code: Sh6, Overturned: true}
 }
+
+// voteOut casts all three seats' ballots and returns the resolved state + events.
+func voteOut(t *testing.T, s State, ballots map[SeatID]bool) (State, []Event) {
+	t.Helper()
+	ns, _, err := Apply(s, ClaimSubjective{Claimant: 1, Target: 0, Code: Sh6})
+	if err != nil {
+		t.Fatalf("claim rejected: %v", err)
+	}
+	var all []Event
+	for _, seat := range []SeatID{0, 1, 2} {
+		var evs []Event
+		ns, evs, err = Apply(ns, Vote{Voter: seat, Support: ballots[seat]})
+		if err != nil {
+			t.Fatalf("vote by %d rejected: %v", seat, err)
+		}
+		all = append(all, evs...)
+	}
+	return ns, all
+}
+
+func TestVoteMajorityForChallengeFlipsToClaimant(t *testing.T) {
+	s := playingState(t, map[SeatID]int{0: 3, 1: 3, 2: 3})
+	// seats 0 and 2 support the challenge (2 of 3 > half) → Ш-8 onto claimant (seat 1).
+	ns, events := voteOut(t, s, map[SeatID]bool{0: true, 1: false, 2: true})
+	if ns.Adjudication != nil {
+		t.Fatal("vote must clear the Adjudication")
+	}
+	assertResolved(t, events, true)
+	// Ш-8 penalty on claimant (seat 1): others (0,2) with ≥2 cards owe → payment gate on seat 1.
+	if ns.Pending == nil || ns.Pending.Offender != 1 {
+		t.Fatalf("expected §8 payment gate for offender 1, got %+v", ns.Pending)
+	}
+}
+
+func TestVoteNoMajorityConfirmsOnTarget(t *testing.T) {
+	s := playingState(t, map[SeatID]int{0: 3, 1: 3, 2: 3})
+	// only seat 2 supports the challenge (1 of 3, not a majority) → ШУХ confirmed on target (seat 0).
+	ns, events := voteOut(t, s, map[SeatID]bool{0: false, 1: false, 2: true})
+	assertResolved(t, events, false)
+	if ns.Pending == nil || ns.Pending.Offender != 0 {
+		t.Fatalf("expected §8 payment gate for offender 0, got %+v", ns.Pending)
+	}
+}
+
+func assertResolved(t *testing.T, events []Event, wantOverturned bool) {
+	t.Helper()
+	for _, e := range events {
+		if r, ok := e.(VoteResolved); ok {
+			if r.Overturned != wantOverturned {
+				t.Fatalf("VoteResolved.Overturned = %v, want %v", r.Overturned, wantOverturned)
+			}
+			return
+		}
+	}
+	t.Fatal("no VoteResolved event emitted")
+}
+
+func TestVoteGatesNormalActions(t *testing.T) {
+	s := playingState(t, map[SeatID]int{0: 3, 1: 3, 2: 3})
+	s.Turn = 0
+	ns, _, err := Apply(s, ClaimSubjective{Claimant: 1, Target: 0, Code: Sh6})
+	if err != nil {
+		t.Fatalf("claim rejected: %v", err)
+	}
+	// While the vote is open, the seat to move cannot play a card.
+	if got := LegalActions(ns, 0); len(got) != 2 {
+		t.Fatalf("during a vote seat 0 may only cast 2 Vote options, got %d: %+v", len(got), got)
+	}
+	if _, _, err := Apply(ns, PlayCard{Card: ns.Hands[0][0]}); err == nil {
+		t.Fatal("a normal move during an open vote must be illegal")
+	}
+}
