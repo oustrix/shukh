@@ -352,6 +352,12 @@ func (s *State) reconcileOneCard(before map[SeatID]int) {
 	}
 }
 
+// Clone returns a deep copy of s suitable for handing across a layer boundary
+// (Layer 1 Snapshot/Restore): every mutated map and slice is fresh and no pointer
+// target (Pending/Unsettled/Adjudication) is aliased, so the copy shares no storage
+// with the original. It is the exported form of the internal copy-on-write clone.
+func (s State) Clone() State { return s.clone() }
+
 // clone returns a deep-enough copy for copy-on-write: all mutated maps and slices
 // are fresh. Seats is immutable for the game and shared.
 func (s State) clone() State {
