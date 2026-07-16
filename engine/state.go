@@ -41,6 +41,18 @@ const (
 	Sh12 ShukhCode = 12 // эндшпиль: держит/использовал 6(2)♥ (R-9.4) — skip + discard
 )
 
+const (
+	Sh6  ShukhCode = 6  // «завис» / затянул ход (R-8.4) — субъективный
+	Sh8  ShukhCode = 8  // «ложный ШУХ»: исход оспаривания, перекладывается на предъявителя (R-8.6)
+	Sh9  ShukhCode = 9  // произнёс «ШУХ» без надобности (R-8.7) — субъективный
+	Sh10 ShukhCode = 10 // небрежность: уронил карту, походил рубашкой (R-8.8) — субъективный
+)
+
+// isSubjective reports whether a ШУХ is a subjective claim resolved by table vote
+// (R-8.6, R-8.9): Ш-6/Ш-9/Ш-10. Ш-8 is the outcome of a failed claim, not itself
+// claimable; the auto-detected codes (Ш-2/Ш-3/Ш-11/Ш-12) are not voted on.
+func (c ShukhCode) isSubjective() bool { return c == Sh6 || c == Sh9 || c == Sh10 }
+
 // The per-code effects of a confirmed ШУХ (§8) — the single source of truth
 // derived by assessShukh, rather than re-stated at each call site.
 
@@ -86,6 +98,19 @@ type EndgameState struct {
 	Active      bool
 	Asked       bool
 	MustDiscard bool
+}
+
+// Adjudication is an open R-8.6 table vote over a subjective ШУХ. Claimant raised
+// Code against Target; every seat 0..n-1 (including finished players, R-8.9/R-9.5)
+// casts one vote. Votes[seat] == true means «support the challenge» (the ШУХ is
+// bogus). On full turnout the vote auto-resolves: a table majority for the
+// challenge moves the penalty onto Claimant as Ш-8, otherwise the ШУХ is confirmed
+// on Target. While it is non-nil the table is frozen — only Vote is legal.
+type Adjudication struct {
+	Claimant SeatID
+	Target   SeatID
+	Code     ShukhCode
+	Votes    map[SeatID]bool
 }
 
 // Player is a seat occupant. Name is carried for higher layers (display, events);
@@ -153,6 +178,7 @@ type State struct {
 	Endgame       EndgameState    // §9.2 endgame flags
 	Pending       *Payment        // active §8 payment gate; nil = none
 	Unsettled     *Unsettled      // Middle catch-window; nil = stable
+	Adjudication  *Adjudication   // active R-8.6 table vote; nil = none (§8/§15.8: exclusive with Unsettled/Pending)
 	OwesOneCard   map[SeatID]bool // §6: seat at 1 card, not yet declared/moved (R-6.1)
 	ShukhTakeable map[SeatID]bool // §8: seat may lift its Shukh pile into hand (R-8.3)
 }
@@ -160,3 +186,16 @@ type State struct {
 // Event is a state-transition fact emitted for higher layers (animations, logs,
 // spec §9). It is a sealed interface — only engine types implement it.
 type Event interface{ isEvent() }
+
+// voterEligible reports whether seat may cast an R-8.6 vote: any seat at the table
+// (0..n-1), finished players included (R-8.9/R-9.5).
+func (s State) voterEligible(seat SeatID) bool {
+	return int(seat) >= 0 && int(seat) < len(s.Seats)
+}
+
+// hasVoted reports whether seat has already cast its vote in the active
+// Adjudication. Precondition: s.Adjudication != nil.
+func (s State) hasVoted(seat SeatID) bool {
+	_, ok := s.Adjudication.Votes[seat]
+	return ok
+}

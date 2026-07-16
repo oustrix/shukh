@@ -323,13 +323,23 @@ func (s State) clone() State {
 		cp := *s.Unsettled // Prev is a snapshot we never mutate; sharing its maps is safe
 		ns.Unsettled = &cp
 	}
+	if s.Adjudication != nil {
+		cp := *s.Adjudication
+		cp.Votes = make(map[SeatID]bool, len(s.Adjudication.Votes))
+		for k, v := range s.Adjudication.Votes {
+			cp.Votes[k] = v
+		}
+		ns.Adjudication = &cp
+	}
 	return ns
 }
 
 // gatesClosed reports whether no catch-window or payment gate is open — i.e. the
 // game is in a normal position where turn-actions and fresh social actions are
 // available (§15.8: at most one of Unsettled/Pending is active at a time).
-func (s State) gatesClosed() bool { return s.Unsettled == nil && s.Pending == nil }
+func (s State) gatesClosed() bool {
+	return s.Unsettled == nil && s.Pending == nil && s.Adjudication == nil
+}
 
 // liveCount is the number of players still in the game (R-5.5.1).
 func (s State) liveCount() int {
