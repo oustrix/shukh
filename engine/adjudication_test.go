@@ -18,11 +18,19 @@ func playingState(t *testing.T, sizes map[SeatID]int) State {
 		OwesOneCard:   map[SeatID]bool{},
 		ShukhTakeable: map[SeatID]bool{},
 	}
-	rank := Rank(7)
+	rank := Rank(6) // Start at 6 (lowest for 36-card deck)
+	// Add dealt cards to hands
 	for seat, n := range sizes {
 		for i := 0; i < n; i++ {
 			s.Hands[seat] = append(s.Hands[seat], Card{Suit: Spades, Rank: rank})
 			rank++
+		}
+	}
+	// Fill remaining cards into Discard to satisfy I-1 (card conservation)
+	// Use all suits to cover all 36 cards
+	for suit := Suit(Hearts); suit <= Clubs; suit++ {
+		for r := Rank(6); r <= Ace; r++ {
+			s.Discard = append(s.Discard, Card{Suit: suit, Rank: r})
 		}
 	}
 	return s
@@ -156,5 +164,14 @@ func TestVoteGatesNormalActions(t *testing.T) {
 	}
 	if _, _, err := Apply(ns, PlayCard{Card: ns.Hands[0][0]}); err == nil {
 		t.Fatal("a normal move during an open vote must be illegal")
+	}
+}
+
+func TestGatesAreMutuallyExclusive(t *testing.T) {
+	s := playingState(t, map[SeatID]int{0: 3, 1: 3, 2: 3})
+	s.Adjudication = &Adjudication{Claimant: 1, Target: 0, Code: Sh6, Votes: map[SeatID]bool{}}
+	s.Pending = &Payment{Offender: 0, Owed: []SeatID{1}}
+	if err := CheckInvariants(s); err == nil {
+		t.Fatal("CheckInvariants must reject two open gates at once (§15.8)")
 	}
 }
