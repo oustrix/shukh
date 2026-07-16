@@ -24,16 +24,14 @@ export interface TableCard {
   by: SeatID
 }
 
-// зеркало engine/view.go (per-seat проекция, D-9) — синхронизировать вручную.
-// NB: engine.View(state,seat) ещё не реализован — форма опережает движок (W-3);
-// синхронизировать, как только view.go появится.
+// зеркало engine/view.go (SeatView, per-seat проекция, D-9) — синхронизировать вручную
 export interface OpponentView {
   seat: SeatID
   handCount: number
   shukhPending: number
   live: boolean
 }
-export interface View {
+export interface SeatView {
   rules: RuleSet
   mode: EnforcementMode
   phase: Phase
@@ -58,7 +56,8 @@ export interface SeatMeta {
 export interface GameSnapshot {
   roomCode: string
   seats: SeatMeta[]
-  view: View | null // null в лобби (партия ещё не началась)
+  view: SeatView | null // null в лобби (партия ещё не началась)
+  legal: Action[] // легальные ходы текущего игрока (зеркало LegalActions); [] когда не наш ход
 }
 
 // зеркало engine/action.go — синхронизировать вручную
@@ -86,7 +85,40 @@ export type GameEvent =
   | { type: 'shukhPaid'; offender: SeatID; from: SeatID; card: Card }
   | { type: 'shukhCardsTaken'; seat: SeatID; cards: Card[] }
 
-// Хелпер уровня контракта (используется UI).
-export function isYourTurn(view: View): boolean {
+// Хелперы уровня контракта (используются UI и транспортом).
+export function isYourTurn(view: SeatView): boolean {
   return view.turn === view.you
+}
+
+// Стабильный ключ карты: в колоде (36/52) карты уникальны по рангу+масти.
+export function cardKey(card: Card): string {
+  return `${card.rank}${card.suit}`
+}
+
+// Каноничный ключ действия — для сравнения (легальность, сверка со сценарием).
+function actionKey(a: Action): string {
+  switch (a.type) {
+    case 'playCard':
+      return `playCard:${cardKey(a.card)}`
+    case 'giveShukhCard':
+      return `giveShukhCard:${cardKey(a.card)}`
+    case 'claimShukh':
+      return `claimShukh:${a.target}:${a.code}`
+    case 'takeShukhCards':
+      return `takeShukhCards:${a.seat}`
+    default:
+      return a.type // takeBottomAndPass | podkladkaWest
+  }
+}
+
+export function actionsEqual(a: Action, b: Action): boolean {
+  return actionKey(a) === actionKey(b)
+}
+
+export function isLegal(legal: Action[], action: Action): boolean {
+  return legal.some((a) => actionsEqual(a, action))
+}
+
+export function isCardPlayable(legal: Action[], card: Card): boolean {
+  return isLegal(legal, { type: 'playCard', card })
 }
