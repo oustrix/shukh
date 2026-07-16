@@ -159,6 +159,14 @@ func Apply(s State, a Action) (State, []Event, error) {
 		// isLegal now guarantees Target holds 6(2)♥ (R-9.4.2), so this always assesses;
 		// assessShukh latches Endgame.Asked for Ш-12 (R-9.4.2/R-9.4.3).
 		ns.assessShukh(act.Target, Sh12, &events)
+	case ClaimSubjective:
+		ns.Adjudication = &Adjudication{
+			Claimant: act.Claimant,
+			Target:   act.Target,
+			Code:     act.Code,
+			Votes:    map[SeatID]bool{},
+		}
+		events = append(events, VoteOpened{Claimant: act.Claimant, Target: act.Target, Code: act.Code})
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -197,6 +205,9 @@ func isLegal(s State, a Action) bool {
 		// dodge Ш-12 — no info leak in the 2-player endgame (you see your own hand).
 		return s.gatesClosed() && s.Endgame.Active && !s.Endgame.Asked && s.Live[act.Target] &&
 			slices.ContainsFunc(s.Hands[act.Target], s.Rules.IsLowestHeart)
+	case ClaimSubjective:
+		return s.gatesClosed() && act.Code.isSubjective() &&
+			s.Live[act.Claimant] && s.Live[act.Target] && act.Claimant != act.Target
 	default:
 		return slices.Contains(LegalActions(s, s.Turn), a)
 	}
