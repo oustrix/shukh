@@ -29,7 +29,7 @@ export function Card({ card, faceDown, selected, dimmed, onClick }: CardProps) {
       className={cls}
       role={interactive ? 'button' : 'img'}
       aria-label={card && !hidden ? cardLabel(card) : 'закрытая карта'}
-      aria-disabled={dimmed || undefined}
+      aria-disabled={(interactive && dimmed) || undefined}
       tabIndex={interactive ? 0 : undefined}
       onClick={onClick}
       onKeyDown={
