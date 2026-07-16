@@ -41,14 +41,14 @@ export function Table() {
 
   const playableKeys = new Set(view.hand.filter((c) => isCardPlayable(legal, c)).map(cardKey))
   const selectedCard = view.hand.find((c) => cardKey(c) === selectedKey) ?? null
-  const canConfirm = selectedCard != null && isCardPlayable(legal, selectedCard)
+  const canConfirm = selectedKey != null && playableKeys.has(selectedKey)
   const canTakeBottom = isLegal(legal, { type: 'takeBottomAndPass' })
   const yourZoneTakeable = isShukhTakeable(legal, view.you)
   const claim = claimShukhInLegal(legal)
   const owesOneCard = (view.live[view.you] ?? false) && view.hand.length === 1 && !announced
 
   const confirmPlay = () => {
-    if (!selectedCard) return
+    if (!canConfirm || !selectedCard) return
     play({ type: 'playCard', card: selectedCard })
     setSelectedKey(null)
   }
