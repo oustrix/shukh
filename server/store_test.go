@@ -44,6 +44,45 @@ func TestMemStoreSaveDeepCopiesTokens(t *testing.T) {
 	}
 }
 
+func TestMemStoreLoadIsolatesSession(t *testing.T) {
+	m := NewMemStore()
+	snap := sampleSnapshot("ROOM01")
+	if err := m.Save(snap); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	first, ok, err := m.Load("ROOM01")
+	if err != nil || !ok {
+		t.Fatalf("Load: ok=%v err=%v", ok, err)
+	}
+
+	// Mutate the loaded copy's Session reference-typed fields.
+	first.Session.Names["host"] = "MUTATED"
+	first.Session.Order[0] = "hijacked"
+	if first.Session.Game.Live != nil {
+		for seat := range first.Session.Game.Live {
+			first.Session.Game.Live[seat] = !first.Session.Game.Live[seat]
+			break
+		}
+	}
+
+	second, ok, err := m.Load("ROOM01")
+	if err != nil || !ok {
+		t.Fatalf("Load: ok=%v err=%v", ok, err)
+	}
+	if second.Session.Names["host"] != "Host" {
+		t.Fatalf("Session.Names aliased: store mutated to %q", second.Session.Names["host"])
+	}
+	if second.Session.Order[0] != "host" {
+		t.Fatalf("Session.Order aliased: store mutated to %q", second.Session.Order[0])
+	}
+	for seat, live := range snap.Session.Game.Live {
+		if second.Session.Game.Live[seat] != live {
+			t.Fatalf("Session.Game aliased: store mutated Live[%v] to %v", seat, second.Session.Game.Live[seat])
+		}
+	}
+}
+
 func TestMemStoreLoadMiss(t *testing.T) {
 	m := NewMemStore()
 	if _, ok, err := m.Load("nope"); ok || err != nil {

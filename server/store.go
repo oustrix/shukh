@@ -1,6 +1,7 @@
 package server
 
 import (
+	"maps"
 	"sync"
 
 	"github.com/oustrix/shukh/game"
@@ -31,12 +32,14 @@ type MemStore struct {
 	rooms map[string]RoomSnapshot
 }
 
+var _ RoomStore = (*MemStore)(nil)
+
 // NewMemStore returns an empty in-memory store.
 func NewMemStore() *MemStore { return &MemStore{rooms: map[string]RoomSnapshot{}} }
 
-// Save write-throughs a deep copy. Session.Game is already deep (game.Snapshot
-// deep-copies, §4); we additionally copy the Tokens map so later mutation of the
-// live snapshot cannot corrupt the store.
+// Save write-throughs a deep copy: Tokens, and Session.Order/Names/Game are all
+// cloned so later mutation of the live snapshot (or of a value returned by Load)
+// cannot alias the store's storage.
 func (m *MemStore) Save(snap RoomSnapshot) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -77,5 +80,8 @@ func copySnapshot(snap RoomSnapshot) RoomSnapshot {
 	for k, v := range snap.Tokens {
 		cp.Tokens[k] = v
 	}
+	cp.Session.Order = append([]game.PlayerID(nil), snap.Session.Order...)
+	cp.Session.Names = maps.Clone(snap.Session.Names)
+	cp.Session.Game = snap.Session.Game.Clone()
 	return cp
 }
