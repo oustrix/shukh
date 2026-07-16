@@ -177,6 +177,3 @@ func (s *Session) Start(host PlayerID, seed int64) error {
 	}
 	return nil
 }
-
-// temporary stub — replaced in Task 9 (subscribe.go)
-type subscriber struct{}
