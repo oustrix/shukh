@@ -15,6 +15,14 @@ func (s *Session) Subscribe(id PlayerID) (<-chan Update, func(), error) {
 	if _, ok := s.seatOf(id); !ok {
 		return nil, nil, ErrUnknownPlayer
 	}
+	// Close-and-replace (L2 reconnect): if a subscriber for id already exists (a
+	// still-live socket at reconnect), close and drop it first so its reader goroutine
+	// receives a closed channel and exits — otherwise it leaks. The old cancel becomes
+	// a no-op: its identity check (cur == oldch) no longer matches s.subs[id].
+	if prev, ok := s.subs[id]; ok {
+		delete(s.subs, id)
+		close(prev)
+	}
 	ch := make(chan Update, subCapacity)
 	s.subs[id] = ch
 	ch <- s.project(id, s.roster(), nil) // initial snapshot fits (fresh buffer)

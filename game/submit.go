@@ -7,6 +7,12 @@ import "github.com/oustrix/shukh/engine"
 // it advances authoritative state, updates the lifecycle, fans out to subscribers,
 // and returns the events. On any rejection state is untouched and nothing is
 // fanned out.
+//
+// L2-4 delivery contract: the returned events are an ACK echo for the caller only —
+// the authoritative render path is the subscription (fanout has already delivered the
+// same change to every seat, including this one). Layer 2 MUST render from the
+// subscription and MUST NOT re-emit or re-render from this return value; treat it as
+// «accepted», nothing more.
 func (s *Session) Submit(id PlayerID, a engine.Action) ([]engine.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
