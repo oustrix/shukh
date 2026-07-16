@@ -1,4 +1,5 @@
 import type { TableCard } from '../../contract/types'
+import { cardKey } from '../../contract/types'
 import { Card } from './Card'
 import styles from './Table.module.css'
 
@@ -12,7 +13,7 @@ export function Con({ table }: ConProps) {
       {table.length === 0 ? (
         <span className={styles.empty}>кон пуст</span>
       ) : (
-        table.map((tc, i) => <Card key={i} card={tc.card} />)
+        table.map((tc) => <Card key={cardKey(tc.card)} card={tc.card} />)
       )}
     </div>
   )

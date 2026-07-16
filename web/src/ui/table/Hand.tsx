@@ -1,4 +1,5 @@
 import type { Card as CardT } from '../../contract/types'
+import { cardKey } from '../../contract/types'
 import { Card } from './Card'
 import styles from './Table.module.css'
 
@@ -12,7 +13,7 @@ export function Hand({ cards, selectedIndex, onSelect }: HandProps) {
   return (
     <div className={styles.hand} data-testid="hand">
       {cards.map((c, i) => (
-        <Card key={i} card={c} selected={i === selectedIndex} onClick={() => onSelect(i)} />
+        <Card key={cardKey(c)} card={c} selected={i === selectedIndex} onClick={() => onSelect(i)} />
       ))}
     </div>
   )
