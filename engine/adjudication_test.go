@@ -8,13 +8,13 @@ import "testing"
 func playingState(t *testing.T, sizes map[SeatID]int) State {
 	t.Helper()
 	s := State{
-		Rules: RuleSet{DeckSize: Deck36},
-		Mode:  Middle,
-		Seats: []SeatID{0, 1, 2},
-		Phase: Playing,
-		Hands: map[SeatID][]Card{},
-		Shukh: map[SeatID][]Card{},
-		Live:  map[SeatID]bool{0: true, 1: true, 2: true},
+		Rules:         RuleSet{DeckSize: Deck36},
+		Mode:          Middle,
+		Seats:         []SeatID{0, 1, 2},
+		Phase:         Playing,
+		Hands:         map[SeatID][]Card{},
+		Shukh:         map[SeatID][]Card{},
+		Live:          map[SeatID]bool{0: true, 1: true, 2: true},
 		OwesOneCard:   map[SeatID]bool{},
 		ShukhTakeable: map[SeatID]bool{},
 	}

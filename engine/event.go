@@ -108,7 +108,7 @@ type VoteOpened struct {
 // table backed the challenge and the ШУХ moved onto Claimant as Ш-8; false means
 // the ШУХ was confirmed on Target.
 type VoteResolved struct {
-	Code      ShukhCode
+	Code       ShukhCode
 	Overturned bool
 }
 
