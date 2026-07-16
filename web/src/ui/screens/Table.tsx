@@ -1,22 +1,65 @@
-import { useState } from 'react'
-import { isYourTurn } from '../../contract/types'
-import { useGameStore, selectSeats, selectView } from '../../store/game'
+import { useState, useEffect } from 'react'
+import {
+  cardKey,
+  isCardPlayable,
+  isLegal,
+  isShukhTakeable,
+  claimShukhInLegal,
+} from '../../contract/types'
+import {
+  useGameStore,
+  selectSeats,
+  selectView,
+  selectLegal,
+  selectShukhVote,
+} from '../../store/game'
 import { Hand } from '../table/Hand'
 import { Con } from '../table/Con'
 import { OpponentSeat } from '../table/OpponentSeat'
+import { ShukhZone } from '../table/ShukhZone'
 import { ActionBar } from '../table/ActionBar'
+import { ShukhVoteModal } from '../table/ShukhVoteModal'
 import styles from '../table/Table.module.css'
 
 export function Table() {
   const view = useGameStore(selectView)
   const seats = useGameStore(selectSeats)
+  const legal = useGameStore(selectLegal)
+  const shukhVote = useGameStore(selectShukhVote)
   const play = useGameStore((s) => s.play)
-  const [selected, setSelected] = useState<number | null>(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [announced, setAnnounced] = useState(false)
+  const handLen = view?.hand.length ?? 0
+  useEffect(() => {
+    if (handLen !== 1) setAnnounced(false)
+  }, [handLen])
 
   if (!view) return <div className={styles.con}>Загрузка стола…</div>
 
   const nameBySeat = new Map(seats.map((s) => [s.seat, s.name]))
   const nameOf = (seat: number) => nameBySeat.get(seat) ?? `Игрок ${seat}`
+
+  const playableKeys = new Set(view.hand.filter((c) => isCardPlayable(legal, c)).map(cardKey))
+  const selectedCard = view.hand.find((c) => cardKey(c) === selectedKey) ?? null
+  const canConfirm = selectedKey != null && playableKeys.has(selectedKey)
+  const canTakeBottom = isLegal(legal, { type: 'takeBottomAndPass' })
+  const yourZoneTakeable = isShukhTakeable(legal, view.you)
+  const claim = claimShukhInLegal(legal)
+  const owesOneCard = (view.live[view.you] ?? false) && view.hand.length === 1 && !announced
+
+  const confirmPlay = () => {
+    if (!canConfirm || !selectedCard) return
+    play({ type: 'playCard', card: selectedCard })
+    setSelectedKey(null)
+  }
+  const onSelect = (card: (typeof view.hand)[number]) => {
+    const key = cardKey(card)
+    if (key === selectedKey) {
+      confirmPlay()
+      return
+    }
+    setSelectedKey(key)
+  }
 
   return (
     <div className={styles.table}>
@@ -26,22 +69,29 @@ export function Table() {
         ))}
       </div>
       <Con table={view.table} />
+      <ShukhZone
+        count={view.shukhPending}
+        takeable={yourZoneTakeable}
+        onTake={() => play({ type: 'takeShukhCards', seat: view.you })}
+        label={`Ваша ШУХ-зона: ${view.shukhPending}`}
+      />
       <ActionBar
-        yourTurn={isYourTurn(view)}
-        onShukh={() => play({ type: 'claimShukh', target: view.turn, code: 2 })}
-        onOneCard={() => {
-          /* объявление «Одна карта!» (§6) — заглушка до Спеца 2 */
-        }}
+        canConfirm={canConfirm}
+        onConfirm={confirmPlay}
+        canTakeBottom={canTakeBottom}
         onTakeBottom={() => play({ type: 'takeBottomAndPass' })}
+        canShukh={claim != null}
+        onShukh={() => claim && play(claim)}
+        owesOneCard={owesOneCard}
+        onOneCard={() => setAnnounced(true)}
       />
       <Hand
         cards={view.hand}
-        selectedIndex={selected}
-        onSelect={(i) => {
-          setSelected(i)
-          play({ type: 'playCard', card: view.hand[i] })
-        }}
+        selectedKey={selectedKey}
+        playableKeys={playableKeys}
+        onSelect={onSelect}
       />
+      {shukhVote && <ShukhVoteModal vote={shukhVote} nameOf={nameOf} />}
     </div>
   )
 }

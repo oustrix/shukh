@@ -1,19 +1,33 @@
-import type { Card as CardT } from '../../contract/types'
+import { AnimatePresence } from 'motion/react'
+import { cardKey, type Card as CardT } from '../../contract/types'
 import { Card } from './Card'
 import styles from './Table.module.css'
 
 interface HandProps {
   cards: CardT[]
-  selectedIndex: number | null
-  onSelect: (index: number) => void
+  selectedKey: string | null
+  playableKeys: Set<string>
+  onSelect: (card: CardT) => void
 }
 
-export function Hand({ cards, selectedIndex, onSelect }: HandProps) {
+export function Hand({ cards, selectedKey, playableKeys, onSelect }: HandProps) {
   return (
     <div className={styles.hand} data-testid="hand">
-      {cards.map((c, i) => (
-        <Card key={i} card={c} selected={i === selectedIndex} onClick={() => onSelect(i)} />
-      ))}
+      <AnimatePresence>
+        {cards.map((c) => {
+          const key = cardKey(c)
+          const playable = playableKeys.has(key)
+          return (
+            <Card
+              key={key}
+              card={c}
+              selected={key === selectedKey}
+              dimmed={!playable}
+              onClick={playable ? () => onSelect(c) : undefined}
+            />
+          )
+        })}
+      </AnimatePresence>
     </div>
   )
 }

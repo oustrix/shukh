@@ -24,16 +24,14 @@ export interface TableCard {
   by: SeatID
 }
 
-// зеркало engine/view.go (per-seat проекция, D-9) — синхронизировать вручную.
-// NB: engine.View(state,seat) ещё не реализован — форма опережает движок (W-3);
-// синхронизировать, как только view.go появится.
+// зеркало engine/view.go (SeatView, per-seat проекция, D-9) — синхронизировать вручную
 export interface OpponentView {
   seat: SeatID
   handCount: number
   shukhPending: number
   live: boolean
 }
-export interface View {
+export interface SeatView {
   rules: RuleSet
   mode: EnforcementMode
   phase: Phase
@@ -49,7 +47,7 @@ export interface View {
   finish: SeatID[]
 }
 
-// Метаданные комнаты (Слой 1) — имена/готовность НЕ входят в engine.View.
+// Метаданные комнаты (Слой 1) — имена/готовность НЕ входят в engine.SeatView.
 export interface SeatMeta {
   seat: SeatID
   name: string
@@ -58,7 +56,20 @@ export interface SeatMeta {
 export interface GameSnapshot {
   roomCode: string
   seats: SeatMeta[]
-  view: View | null // null в лобби (партия ещё не началась)
+  view: SeatView | null // null в лобби (партия ещё не началась)
+  legal: Action[] // легальные ходы текущего игрока (зеркало LegalActions); [] когда не наш ход
+  shukhVote?: ShukhVote | null // активное голосование по ШУХу (R-8.6); скриптовано (W2-7)
+}
+
+// Голосование/оспаривание ШУХа (R-8.6). Это клиент/сервер-DTO Спеца 2, НЕ engine.SeatView:
+// голоса и исход присылает сервер; на моке — сценарий (кворум по-настоящему не считаем, W2-7).
+export interface ShukhVote {
+  claimant: SeatID // кто предъявил ШУХ
+  target: SeatID // на кого
+  code: ShukhCode
+  votes: { seat: SeatID; up: boolean }[] // голоса судящих (R-8.9); скриптованы
+  outcome: 'upheld' | 'overturned' // overturned → Ш-8 предъявившему
+  resolved: boolean // false — идёт голосование; true — показать исход
 }
 
 // зеркало engine/action.go — синхронизировать вручную
@@ -86,7 +97,54 @@ export type GameEvent =
   | { type: 'shukhPaid'; offender: SeatID; from: SeatID; card: Card }
   | { type: 'shukhCardsTaken'; seat: SeatID; cards: Card[] }
 
-// Хелпер уровня контракта (используется UI).
-export function isYourTurn(view: View): boolean {
+// Хелперы уровня контракта (используются UI и транспортом).
+export function isYourTurn(view: SeatView): boolean {
   return view.turn === view.you
+}
+
+// Стабильный ключ карты: в колоде (36/52) карты уникальны по рангу+масти.
+export function cardKey(card: Card): string {
+  return `${card.rank}${card.suit}`
+}
+
+// Каноничный ключ действия — для сравнения (легальность, сверка со сценарием).
+function actionKey(a: Action): string {
+  switch (a.type) {
+    case 'playCard':
+      return `playCard:${cardKey(a.card)}`
+    case 'giveShukhCard':
+      return `giveShukhCard:${cardKey(a.card)}`
+    case 'claimShukh':
+      return `claimShukh:${a.target}:${a.code}`
+    case 'takeShukhCards':
+      return `takeShukhCards:${a.seat}`
+    default:
+      return a.type // takeBottomAndPass | podkladkaWest
+  }
+}
+
+export function actionsEqual(a: Action, b: Action): boolean {
+  return actionKey(a) === actionKey(b)
+}
+
+export function isLegal(legal: Action[], action: Action): boolean {
+  return legal.some((a) => actionsEqual(a, action))
+}
+
+export function isCardPlayable(legal: Action[], card: Card): boolean {
+  return isLegal(legal, { type: 'playCard', card })
+}
+
+// Первый claimShukh в списке легальных (открыто ли ШУХ-окно). Клиент не судит —
+// сервер кладёт конкретный предъявляемый ШУХ в legal, кнопка лишь его отправляет.
+export function claimShukhInLegal(
+  legal: Action[],
+): Extract<Action, { type: 'claimShukh' }> | undefined {
+  return legal.find((a): a is Extract<Action, { type: 'claimShukh' }> => a.type === 'claimShukh')
+}
+
+// Можно ли забрать свои отложенные ШУХ-карты (R-8.3 — только по завершении кона).
+// Гейтится legal: сервер добавляет takeShukhCards, когда взятие законно.
+export function isShukhTakeable(legal: Action[], seat: SeatID): boolean {
+  return isLegal(legal, { type: 'takeShukhCards', seat })
 }

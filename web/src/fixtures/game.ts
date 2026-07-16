@@ -35,4 +35,9 @@ export const gameSnapshot: GameSnapshot = {
     live: { 0: true, 1: true, 2: true },
     finish: [],
   },
+  legal: [
+    { type: 'playCard', card: { suit: '♥', rank: 12 } }, // Дама♥ бьёт что угодно (R-3.7)
+    { type: 'takeBottomAndPass' },
+  ],
+  shukhVote: null,
 }

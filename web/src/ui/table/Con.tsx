@@ -1,4 +1,5 @@
-import type { TableCard } from '../../contract/types'
+import { AnimatePresence } from 'motion/react'
+import { cardKey, type TableCard } from '../../contract/types'
 import { Card } from './Card'
 import styles from './Table.module.css'
 
@@ -9,11 +10,15 @@ interface ConProps {
 export function Con({ table }: ConProps) {
   return (
     <div className={styles.con} data-testid="con">
-      {table.length === 0 ? (
-        <span className={styles.empty}>кон пуст</span>
-      ) : (
-        table.map((tc, i) => <Card key={i} card={tc.card} />)
-      )}
+      <AnimatePresence mode="popLayout">
+        {table.length === 0 ? (
+          <span key="empty" className={styles.empty}>
+            кон пуст
+          </span>
+        ) : (
+          table.map((tc) => <Card key={cardKey(tc.card)} card={tc.card} />)
+        )}
+      </AnimatePresence>
     </div>
   )
 }
