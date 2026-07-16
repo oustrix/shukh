@@ -63,6 +63,9 @@ export function createScriptedTransport(
       return () => {
         onSnapshot = null
         onEvent = null
+        // TODO(ws.ts): отмену таймера юнит-тестом не покрыли — текущие тесты
+        // синхронны (отменять нечего). Добавить тест с фейковыми таймерами,
+        // когда появится реальный transport/ws.ts с keepalive/reconnect.
         if (typeof cancelPending === 'function') cancelPending() // остановить таймер-цепочку
       }
     },
