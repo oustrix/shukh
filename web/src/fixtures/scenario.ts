@@ -213,17 +213,17 @@ export const demoScenario: Scenario = [
       [],
     ),
   },
-  // 9. Вера заходит 10♦ (козырь), оставаясь с 1 картой и НЕ объявив «Одна карта!»
-  //    (нарушение R-6.1a). Ход к вам: бить нечем (10♦ старше 7♦, клуба не бьёт козырь) →
+  // 9. Вера заходит 8♦ (козырь), оставаясь с 1 картой и НЕ объявив «Одна карта!»
+  //    (нарушение R-6.1a). Ход к вам: бить нечем (8♦ старше 7♦, клуба не бьёт козырь) →
   //    только «Взять низ». Открыто ШУХ-окно на Веру (Ш-11, R-6.2) (auto).
   {
     kind: 'auto',
     delayMs: DELAY,
-    events: [{ type: 'cardPlayed', seat: 2, card: c(10, '♦') }],
+    events: [{ type: 'cardPlayed', seat: 2, card: c(8, '♦') }],
     snapshot: base(
       {
         hand: [c(14, '♣'), c(7, '♦')],
-        table: [{ card: c(10, '♦'), by: 2 }],
+        table: [{ card: c(8, '♦'), by: 2 }],
         discard: 8,
         turn: 0,
         opponents: opp(3, 1),
@@ -239,7 +239,7 @@ export const demoScenario: Scenario = [
     snapshot: base(
       {
         hand: [c(14, '♣'), c(7, '♦')],
-        table: [{ card: c(10, '♦'), by: 2 }],
+        table: [{ card: c(8, '♦'), by: 2 }],
         discard: 8,
         turn: 0,
         opponents: opp(3, 1),
@@ -263,7 +263,7 @@ export const demoScenario: Scenario = [
     snapshot: base(
       {
         hand: [c(14, '♣'), c(7, '♦')],
-        table: [{ card: c(10, '♦'), by: 2 }],
+        table: [{ card: c(8, '♦'), by: 2 }],
         discard: 8,
         turn: 0,
         opponents: opp(3, 1),
@@ -279,21 +279,21 @@ export const demoScenario: Scenario = [
       },
     ),
   },
-  // 12. Оплата (R-8.1): вы отдаёте 14♣ (I-2 — не последнюю, у вас 2), Боря отдаёт 5♣.
+  // 12. Оплата (R-8.1): вы отдаёте 14♣ (I-2 — не последнюю, у вас 2), Боря отдаёт 9♣.
   //     Карты уходят в ШУХ-зону Веры лицом вниз (I-3, не в руку). Вера pending 0→2;
   //     Боря 3→2. Ваша рука 2→1 → у вас загорается «Одна карта!». Модалка закрывается.
-  //     Ход у вас (R-8.5): бить 10♦ нечем → «Взять низ» (auto).
+  //     Ход у вас (R-8.5): бить 8♦ нечем → «Взять низ» (auto).
   {
     kind: 'auto',
     delayMs: DELAY,
     events: [
       { type: 'shukhPaid', offender: 2, from: 0, card: c(14, '♣') },
-      { type: 'shukhPaid', offender: 2, from: 1, card: c(5, '♣') },
+      { type: 'shukhPaid', offender: 2, from: 1, card: c(9, '♣') },
     ],
     snapshot: base(
       {
         hand: [c(7, '♦')],
-        table: [{ card: c(10, '♦'), by: 2 }],
+        table: [{ card: c(8, '♦'), by: 2 }],
         discard: 8,
         turn: 0,
         opponents: opp(2, 1, 2),
