@@ -101,6 +101,9 @@ func (s *Session) Join(id PlayerID, name string) error {
 
 // Leave removes a player from the lobby (mid-game leave is a Layer-2 disconnect
 // concern, out of scope here). No-op if the game has started or the player is absent.
+// If the leaving player is the host and at least one player remains, the host role
+// migrates to the new order[0] (L2-3); if the room becomes empty the host is left
+// dangling and Layer 2 GCs the room — nothing to migrate to.
 func (s *Session) Leave(id PlayerID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -116,6 +119,9 @@ func (s *Session) Leave(id PlayerID) {
 			s.order = append(s.order[:i], s.order[i+1:]...)
 			break
 		}
+	}
+	if id == s.host && len(s.order) > 0 {
+		s.host = s.order[0] // migrate the host role to the next seat (L2-3)
 	}
 }
 

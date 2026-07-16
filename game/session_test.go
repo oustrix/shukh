@@ -68,6 +68,36 @@ func TestStartRequiresHostAndTwoPlayers(t *testing.T) {
 	}
 }
 
+func TestLeaveMigratesHost(t *testing.T) {
+	s := NewSession(cfg36(), "h", "Host")
+	if err := s.Join("p2", "Bob"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Join("p3", "Cara"); err != nil {
+		t.Fatal(err)
+	}
+	s.Leave("h") // the host leaves the lobby
+
+	// The host role migrates to the new order[0] (p2); p3 is still a non-host.
+	if err := s.Start("p3", 1); err != ErrNotHost {
+		t.Fatalf("non-host p3 start: want ErrNotHost, got %v", err)
+	}
+	if err := s.Start("p2", 42); err != nil {
+		t.Fatalf("migrated host p2 must be able to Start, got %v", err)
+	}
+	if s.Stage() != Playing {
+		t.Fatalf("after Start stage must be Playing, got %v", s.Stage())
+	}
+}
+
+func TestLeaveHostEmptiesRoom(t *testing.T) {
+	s := NewSession(cfg36(), "h", "Host")
+	s.Leave("h") // sole player leaves → host migration is a no-op
+	if len(s.order) != 0 {
+		t.Fatalf("room must be empty after the sole player leaves, got order %v", s.order)
+	}
+}
+
 func TestSetConfigHostLobbyOnly(t *testing.T) {
 	s := NewSession(cfg36(), "h", "Host")
 	c52 := Config{Rules: engine.RuleSet{DeckSize: engine.Deck52}, Mode: engine.Guard}
