@@ -1,6 +1,5 @@
 import { AnimatePresence } from 'motion/react'
-import type { Card as CardT } from '../../contract/types'
-import { cardKey } from '../../contract/types'
+import { cardKey, type Card as CardT } from '../../contract/types'
 import { Card } from './Card'
 import styles from './Table.module.css'
 
@@ -15,7 +14,12 @@ export function Hand({ cards, selectedIndex, onSelect }: HandProps) {
     <div className={styles.hand} data-testid="hand">
       <AnimatePresence>
         {cards.map((c, i) => (
-          <Card key={cardKey(c)} card={c} selected={i === selectedIndex} onClick={() => onSelect(i)} />
+          <Card
+            key={cardKey(c)}
+            card={c}
+            selected={i === selectedIndex}
+            onClick={() => onSelect(i)}
+          />
         ))}
       </AnimatePresence>
     </div>

@@ -14,18 +14,24 @@ export interface Step {
 export type Scenario = Step[]
 
 // Планировщик auto-шагов — инъектируется в тестах (синхронный) ради детерминизма.
-export type Scheduler = (fn: () => void, ms: number) => void
+// Возвращает функцию отмены запланированного вызова (или void, если отменять нечего).
+export type Scheduler = (fn: () => void, ms: number) => (() => void) | void
 const defaultScheduler: Scheduler = (fn, ms) => {
-  setTimeout(fn, ms)
+  const id = setTimeout(fn, ms)
+  return () => clearTimeout(id)
 }
 
 // Скриптованный транспорт — двойник будущего ws.ts. Начальный (нулевой) auto-шаг
 // эмитится СИНХРОННО при подписке (сервер сразу отдаёт стартовое состояние);
 // последующие auto-шаги идут через планировщик. Предусловие: scenario[0].kind === 'auto'.
-export function createScriptedTransport(scenario: Scenario, schedule: Scheduler = defaultScheduler): Transport {
+export function createScriptedTransport(
+  scenario: Scenario,
+  schedule: Scheduler = defaultScheduler,
+): Transport {
   let index = 0
   let onSnapshot: ((s: GameSnapshot) => void) | null = null
   let onEvent: ((e: GameEvent) => void) | null = null
+  let cancelPending: (() => void) | void // отмена ещё не проигранного auto-шага
 
   function emit(step: Step) {
     step.events.forEach((e) => onEvent?.(e))
@@ -36,7 +42,7 @@ export function createScriptedTransport(scenario: Scenario, schedule: Scheduler 
   function scheduleAutos() {
     const step = scenario[index]
     if (!step || step.kind !== 'auto') return
-    schedule(() => {
+    cancelPending = schedule(() => {
       index += 1
       emit(step)
       scheduleAutos()
@@ -57,6 +63,7 @@ export function createScriptedTransport(scenario: Scenario, schedule: Scheduler 
       return () => {
         onSnapshot = null
         onEvent = null
+        if (typeof cancelPending === 'function') cancelPending() // остановить таймер-цепочку
       }
     },
     send(action) {

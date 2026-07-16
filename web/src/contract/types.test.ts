@@ -39,10 +39,16 @@ test('cardKey уникален по рангу+масти', () => {
 
 test('actionsEqual сравнивает по типу и полям (включая карту)', () => {
   expect(
-    actionsEqual({ type: 'playCard', card: { suit: '♦', rank: 9 } }, { type: 'playCard', card: { suit: '♦', rank: 9 } }),
+    actionsEqual(
+      { type: 'playCard', card: { suit: '♦', rank: 9 } },
+      { type: 'playCard', card: { suit: '♦', rank: 9 } },
+    ),
   ).toBe(true)
   expect(
-    actionsEqual({ type: 'playCard', card: { suit: '♦', rank: 9 } }, { type: 'playCard', card: { suit: '♠', rank: 9 } }),
+    actionsEqual(
+      { type: 'playCard', card: { suit: '♦', rank: 9 } },
+      { type: 'playCard', card: { suit: '♠', rank: 9 } },
+    ),
   ).toBe(false)
   expect(actionsEqual({ type: 'takeBottomAndPass' }, { type: 'takeBottomAndPass' })).toBe(true)
 })

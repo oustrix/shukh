@@ -1,7 +1,12 @@
 import type { Card, GameSnapshot, SeatView } from '../contract/types'
 import type { Scenario } from '../transport/scripted'
+import { buildSeatView } from './seatView'
 
 const c = (rank: number, suit: Card['suit']): Card => ({ rank, suit })
+
+const DELAY = 800 // пауза перед авто-ходом бота
+// Рука после захода 9♦ — не меняется, пока боты бьют, вплоть до боя Дамой♥.
+const HAND1 = [c(12, '♥'), c(6, '♠'), c(14, '♣'), c(7, '♦')]
 
 const SEATS = [
   { seat: 0, name: 'Аня', ready: true },
@@ -18,22 +23,7 @@ function base(over: Partial<SeatView>, legal: GameSnapshot['legal']): GameSnapsh
   return {
     roomCode: 'DEMO',
     seats: SEATS,
-    view: {
-      rules: { deckSize: 36, podkladkaSnizu: false, jokers: false },
-      mode: 'middle',
-      phase: 'playing',
-      you: 0,
-      turn: 0,
-      hand: [],
-      shukhPending: 0,
-      opponents: opp(5, 5),
-      table: [],
-      discard: 0,
-      talon: 0,
-      live: { 0: true, 1: true, 2: true },
-      finish: [],
-      ...over,
-    },
+    view: buildSeatView({ opponents: opp(5, 5), live: { 0: true, 1: true, 2: true }, ...over }),
     legal,
   }
 }
@@ -47,7 +37,11 @@ export const demoScenario: Scenario = [
     kind: 'auto',
     events: [{ type: 'gameStarted', turn: 0 }],
     snapshot: base(
-      { hand: [c(9, '♦'), c(12, '♥'), c(6, '♠'), c(14, '♣'), c(7, '♦')], turn: 0, opponents: opp(5, 5) },
+      {
+        hand: [c(9, '♦'), c(12, '♥'), c(6, '♠'), c(14, '♣'), c(7, '♦')],
+        turn: 0,
+        opponents: opp(5, 5),
+      },
       [
         { type: 'playCard', card: c(9, '♦') },
         { type: 'playCard', card: c(6, '♠') },
@@ -63,7 +57,7 @@ export const demoScenario: Scenario = [
     events: [{ type: 'cardPlayed', seat: 0, card: c(9, '♦') }],
     snapshot: base(
       {
-        hand: [c(12, '♥'), c(6, '♠'), c(14, '♣'), c(7, '♦')],
+        hand: HAND1,
         table: [{ card: c(9, '♦'), by: 0 }],
         turn: 1,
         opponents: opp(5, 5),
@@ -74,11 +68,11 @@ export const demoScenario: Scenario = [
   // 2. Боря бьёт 10♦ (auto).
   {
     kind: 'auto',
-    delayMs: 800,
+    delayMs: DELAY,
     events: [{ type: 'cardPlayed', seat: 1, card: c(10, '♦') }],
     snapshot: base(
       {
-        hand: [c(12, '♥'), c(6, '♠'), c(14, '♣'), c(7, '♦')],
+        hand: HAND1,
         table: [
           { card: c(9, '♦'), by: 0 },
           { card: c(10, '♦'), by: 1 },
@@ -93,7 +87,7 @@ export const demoScenario: Scenario = [
   //    сметается; Вера (закрывший) открывает следующий (R-5.7).
   {
     kind: 'auto',
-    delayMs: 800,
+    delayMs: DELAY,
     events: [
       { type: 'cardPlayed', seat: 2, card: c(11, '♦') },
       { type: 'conClosed', by: 2 },
@@ -101,7 +95,7 @@ export const demoScenario: Scenario = [
     ],
     snapshot: base(
       {
-        hand: [c(12, '♥'), c(6, '♠'), c(14, '♣'), c(7, '♦')],
+        hand: HAND1,
         table: [],
         discard: 3,
         turn: 2,
@@ -113,11 +107,11 @@ export const demoScenario: Scenario = [
   // 4. Вера заходит 7♣ (auto). Ход к вам: бить или взять низ.
   {
     kind: 'auto',
-    delayMs: 800,
+    delayMs: DELAY,
     events: [{ type: 'cardPlayed', seat: 2, card: c(7, '♣') }],
     snapshot: base(
       {
-        hand: [c(12, '♥'), c(6, '♠'), c(14, '♣'), c(7, '♦')],
+        hand: HAND1,
         table: [{ card: c(7, '♣'), by: 2 }],
         discard: 3,
         turn: 0,

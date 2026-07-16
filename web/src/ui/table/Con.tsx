@@ -1,6 +1,5 @@
 import { AnimatePresence } from 'motion/react'
-import type { TableCard } from '../../contract/types'
-import { cardKey } from '../../contract/types'
+import { cardKey, type TableCard } from '../../contract/types'
 import { Card } from './Card'
 import styles from './Table.module.css'
 

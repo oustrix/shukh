@@ -64,18 +64,20 @@ test('events ограничены EVENTS_CAP (кольцевой буфер)', (
 })
 
 test('стор проходит сценарий: play продвигает снапшот (синхронный планировщик)', () => {
-  const store = createGameStore(createScriptedTransport(
-    [
-      { kind: 'auto', events: [], snapshot: { ...gameSnapshot } },
-      {
-        kind: 'await',
-        expect: { type: 'takeBottomAndPass' },
-        events: [{ type: 'cardsTaken', seat: 0, cards: [] }],
-        snapshot: { ...gameSnapshot, roomCode: 'AFTER' },
-      },
-    ],
-    (fn) => fn(),
-  ))
+  const store = createGameStore(
+    createScriptedTransport(
+      [
+        { kind: 'auto', events: [], snapshot: { ...gameSnapshot } },
+        {
+          kind: 'await',
+          expect: { type: 'takeBottomAndPass' },
+          events: [{ type: 'cardsTaken', seat: 0, cards: [] }],
+          snapshot: { ...gameSnapshot, roomCode: 'AFTER' },
+        },
+      ],
+      (fn) => fn(),
+    ),
+  )
   expect(store.getState().snapshot?.roomCode).toBe('DEMO')
   store.getState().play({ type: 'takeBottomAndPass' })
   expect(store.getState().snapshot?.roomCode).toBe('AFTER')

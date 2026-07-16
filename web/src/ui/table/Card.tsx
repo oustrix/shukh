@@ -1,6 +1,5 @@
 import { motion } from 'motion/react'
-import type { Card as CardT } from '../../contract/types'
-import { cardKey } from '../../contract/types'
+import { cardKey, type Card as CardT } from '../../contract/types'
 import { cx } from '../kit/cx'
 import { rankLabel, isRedSuit, cardLabel } from './cardText'
 import styles from './Card.module.css'
