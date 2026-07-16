@@ -148,7 +148,13 @@ func Apply(s State, a Action) (State, []Event, error) {
 		ns.Discard = append(ns.Discard, west)
 		ns.Endgame.MustDiscard = false
 		events = append(events, WestDiscarded{Seat: turn})
-		ns.settleTurn(ns.nextLive(turn), &events)
+		// Discarding may have emptied the discarder's hand → it exits (R-9.1); the
+		// con is already empty so nothing holds it back. Mirror TakeBottomAndPass /
+		// PodkladkaWest: resolve the exit before handing off the turn.
+		ns.resolveExits([]SeatID{turn}, &events)
+		if ns.Phase != Finished {
+			ns.settleTurn(ns.nextLive(turn), &events)
+		}
 	case AskAboutWest:
 		// isLegal now guarantees Target holds 6(2)♥ (R-9.4.2), so this always assesses;
 		// assessShukh latches Endgame.Asked for Ш-12 (R-9.4.2/R-9.4.3).

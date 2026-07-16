@@ -41,6 +41,28 @@ func TestDiscardWestSendsSixHeartsToDiscard(t *testing.T) {
 	require.Contains(t, events, WestDiscarded{Seat: 0})
 }
 
+func TestDiscardWestLastCardExitsAndWins(t *testing.T) {
+	// Endgame, 2 live. Seat 0's ONLY card is 6(2)♥ on an empty con → it is obliged
+	// to DiscardWest (R-9.3), which empties its hand. By R-9.1 it must then EXIT
+	// (finish 1st) and, with one player left, the game ends with seat 1 the loser.
+	// Regression: without resolveExits after DiscardWest, seat 0 lingered Live and
+	// on its next turn was forced to TakeBottomAndPass seat 1's заход — dragging the
+	// winner back into the game and inverting the result.
+	s := playing(map[SeatID][]Card{
+		0: {{Hearts, 6}},
+		1: {{Clubs, 8}},
+	}, nil, 0)
+	s.Endgame = EndgameState{Active: true}
+
+	ns, events, err := Apply(s, DiscardWest{})
+	require.NoError(t, err)
+	require.Equal(t, Finished, ns.Phase)
+	require.False(t, ns.Live[0])
+	require.Equal(t, []SeatID{0, 1}, ns.Finish) // seat 0 out first (winner), seat 1 the loser
+	require.Contains(t, events, WestDiscarded{Seat: 0})
+	require.Contains(t, events, PlayerFinished{Seat: 0, Place: 1})
+}
+
 func TestEndgameForbidsWestPodkladka(t *testing.T) {
 	// In the endgame 6(2)♥ must go to отбой, never under 7(3)♥ into a hand (R-9.4.3).
 	s := middle(map[SeatID][]Card{
