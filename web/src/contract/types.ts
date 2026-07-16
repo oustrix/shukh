@@ -58,6 +58,18 @@ export interface GameSnapshot {
   seats: SeatMeta[]
   view: SeatView | null // null в лобби (партия ещё не началась)
   legal: Action[] // легальные ходы текущего игрока (зеркало LegalActions); [] когда не наш ход
+  shukhVote?: ShukhVote | null // активное голосование по ШУХу (R-8.6); скриптовано (W2-7)
+}
+
+// Голосование/оспаривание ШУХа (R-8.6). Это клиент/сервер-DTO Спеца 2, НЕ engine.SeatView:
+// голоса и исход присылает сервер; на моке — сценарий (кворум по-настоящему не считаем, W2-7).
+export interface ShukhVote {
+  claimant: SeatID // кто предъявил ШУХ
+  target: SeatID // на кого
+  code: ShukhCode
+  votes: { seat: SeatID; up: boolean }[] // голоса судящих (R-8.9); скриптованы
+  outcome: 'upheld' | 'overturned' // overturned → Ш-8 предъявившему
+  resolved: boolean // false — идёт голосование; true — показать исход
 }
 
 // зеркало engine/action.go — синхронизировать вручную
@@ -121,4 +133,18 @@ export function isLegal(legal: Action[], action: Action): boolean {
 
 export function isCardPlayable(legal: Action[], card: Card): boolean {
   return isLegal(legal, { type: 'playCard', card })
+}
+
+// Первый claimShukh в списке легальных (открыто ли ШУХ-окно). Клиент не судит —
+// сервер кладёт конкретный предъявляемый ШУХ в legal, кнопка лишь его отправляет.
+export function claimShukhInLegal(
+  legal: Action[],
+): Extract<Action, { type: 'claimShukh' }> | undefined {
+  return legal.find((a): a is Extract<Action, { type: 'claimShukh' }> => a.type === 'claimShukh')
+}
+
+// Можно ли забрать свои отложенные ШУХ-карты (R-8.3 — только по завершении кона).
+// Гейтится legal: сервер добавляет takeShukhCards, когда взятие законно.
+export function isShukhTakeable(legal: Action[], seat: SeatID): boolean {
+  return isLegal(legal, { type: 'takeShukhCards', seat })
 }

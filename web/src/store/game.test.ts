@@ -63,6 +63,19 @@ test('events ограничены EVENTS_CAP (кольцевой буфер)', (
   expect(store.getState().events).toHaveLength(EVENTS_CAP)
 })
 
+test('events keep-last: буфер хранит ПОСЛЕДНИЕ события, не первые', () => {
+  const f = fakeTransport()
+  const store = createGameStore(f.transport)
+  const N = EVENTS_CAP + 5
+  for (let i = 0; i < N; i++) {
+    f.emitEvent({ type: 'cardPlayed', seat: 0, card: { suit: '♦', rank: i } })
+  }
+  const evs = store.getState().events as Extract<GameEvent, { type: 'cardPlayed' }>[]
+  expect(evs).toHaveLength(EVENTS_CAP)
+  expect(evs[EVENTS_CAP - 1].card.rank).toBe(N - 1) // самое свежее — последнее
+  expect(evs[0].card.rank).toBe(N - EVENTS_CAP) // первые 5 вытеснены
+})
+
 test('стор проходит сценарий: play продвигает снапшот (синхронный планировщик)', () => {
   const store = createGameStore(
     createScriptedTransport(

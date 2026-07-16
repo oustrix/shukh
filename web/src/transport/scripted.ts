@@ -4,13 +4,19 @@ import { actionsEqual } from '../contract/types'
 
 // Шаг сценария. 'auto' проигрывается сам (по таймеру), 'await' ждёт ожидаемое
 // действие игрока. snapshot — состояние ПОСЛЕ шага; events эмитятся перед снапшотом.
-export interface Step {
-  kind: 'auto' | 'await'
-  expect?: Action
+interface StepBase {
   events: GameEvent[]
   snapshot: GameSnapshot
-  delayMs?: number
 }
+export interface AutoStep extends StepBase {
+  kind: 'auto'
+  delayMs?: number // пауза перед проигрыванием
+}
+export interface AwaitStep extends StepBase {
+  kind: 'await'
+  expect: Action // ожидаемое действие игрока — обязателен на await-шаге
+}
+export type Step = AutoStep | AwaitStep
 export type Scenario = Step[]
 
 // Планировщик auto-шагов — инъектируется в тестах (синхронный) ради детерминизма.
@@ -72,7 +78,7 @@ export function createScriptedTransport(
     send(action) {
       const step = scenario[index]
       if (!step || step.kind !== 'await') return // не наш момент
-      if (step.expect && !actionsEqual(step.expect, action)) return // офф-скрипт
+      if (!actionsEqual(step.expect, action)) return // офф-скрипт
       index += 1
       emit(step)
       scheduleAutos()

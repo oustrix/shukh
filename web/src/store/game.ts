@@ -17,6 +17,7 @@ export const EVENTS_CAP = 100
 export const selectSeats = (s: GameState) => s.snapshot?.seats ?? []
 export const selectView = (s: GameState) => s.snapshot?.view ?? null
 export const selectLegal = (s: GameState) => s.snapshot?.legal ?? []
+export const selectShukhVote = (s: GameState) => s.snapshot?.shukhVote ?? null
 
 // Создаёт изолированный стор поверх переданного транспорта. Подписка — ПОСЛЕ
 // создания стора: транспорт пушит в уже готовый setState.
