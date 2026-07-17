@@ -15,19 +15,5 @@ func (s *Session) CloseVote() ([]engine.Event, error) {
 	if s.state.Adjudication == nil {
 		return nil, nil // no open vote → nothing to resolve
 	}
-	ns, events, err := engine.Apply(s.state, engine.CloseVote{})
-	if err != nil {
-		return nil, err
-	}
-	if inv := engine.CheckInvariants(ns); inv != nil {
-		// A broken invariant after Apply is an engine bug — surface it, do not commit
-		// the corrupt state.
-		return nil, inv
-	}
-	s.state = ns
-	if ns.Phase == engine.Finished {
-		s.stage = Finished
-	}
-	s.fanout(events)
-	return events, nil
+	return s.commitApply(engine.Apply(s.state, engine.CloseVote{}))
 }

@@ -102,13 +102,11 @@ func (r *Room) playerFor(tok Token) (game.PlayerID, bool) {
 	return pid, ok
 }
 
-// seatOf resolves pid to its current seat index via the durable session order, or -1
-// if not seated. Cheap enough for per-update use in the MVP.
+// seatOf resolves pid to its current seat index via the session's live order, or -1
+// if not seated.
 func (r *Room) seatOf(pid game.PlayerID) engine.SeatID {
-	for i, p := range r.session.Snapshot().Order {
-		if p == pid {
-			return engine.SeatID(i)
-		}
+	if seat, ok := r.session.SeatOf(pid); ok {
+		return seat
 	}
 	return -1
 }

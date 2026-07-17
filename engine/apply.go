@@ -39,9 +39,7 @@ func Apply(s State, a Action) (State, []Event, error) {
 	case ClaimShukh, CloseVote:
 		// don't settle
 	default:
-		if ns.Unsettled != nil {
-			ns.Unsettled = nil
-		}
+		ns.Unsettled = nil
 	}
 
 	// Pre-action hand sizes (§15.6), captured from the input s before any mutation,

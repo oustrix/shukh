@@ -136,6 +136,13 @@ func (s *Session) seatOf(id PlayerID) (engine.SeatID, bool) {
 	return 0, false
 }
 
+// SeatOf reports the seat index for id and whether id is seated. Thread-safe.
+func (s *Session) SeatOf(id PlayerID) (engine.SeatID, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.seatOf(id)
+}
+
 // SetConfig changes the match config before the game starts. Host + Lobby only.
 func (s *Session) SetConfig(host PlayerID, cfg Config) error {
 	s.mu.Lock()

@@ -76,10 +76,7 @@ func (m *MemStore) List() ([]string, error) {
 
 func copySnapshot(snap RoomSnapshot) RoomSnapshot {
 	cp := snap
-	cp.Tokens = make(map[Token]game.PlayerID, len(snap.Tokens))
-	for k, v := range snap.Tokens {
-		cp.Tokens[k] = v
-	}
+	cp.Tokens = maps.Clone(snap.Tokens)
 	cp.Session.Order = append([]game.PlayerID(nil), snap.Session.Order...)
 	cp.Session.Names = maps.Clone(snap.Session.Names)
 	cp.Session.Game = snap.Session.Game.Clone()

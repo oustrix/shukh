@@ -67,21 +67,25 @@ func (h *Hub) Room(code string) (*Room, bool) {
 func (h *Hub) sweep() {
 	now := h.clock.Now()
 	h.mu.Lock()
-	var dead []string
-	var deadRooms []*Room
+	var dead []struct {
+		code string
+		room *Room
+	}
 	for code, r := range h.rooms {
 		if r.collectible(now) {
-			dead = append(dead, code)
-			deadRooms = append(deadRooms, r)
+			dead = append(dead, struct {
+				code string
+				room *Room
+			}{code, r})
 		}
 	}
-	for _, code := range dead {
-		delete(h.rooms, code)
+	for _, d := range dead {
+		delete(h.rooms, d.code)
 	}
 	h.mu.Unlock()
-	for i, code := range dead {
-		deadRooms[i].close()
-		_ = h.store.Delete(code)
+	for _, d := range dead {
+		d.room.close()
+		_ = h.store.Delete(d.code)
 	}
 }
 

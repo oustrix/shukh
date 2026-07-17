@@ -26,13 +26,18 @@ func (s *Session) Submit(id PlayerID, a engine.Action) ([]engine.Event, error) {
 	if err := s.authorize(seat, a); err != nil {
 		return nil, err
 	}
-	ns, events, err := engine.Apply(s.state, a)
+	return s.commitApply(engine.Apply(s.state, a))
+}
+
+// commitApply commits the result of an engine.Apply under s.mu (caller holds it):
+// on error it returns it untouched; otherwise it verifies invariants (surfacing a
+// broken one without committing), advances state + lifecycle, fans out, and returns
+// the events.
+func (s *Session) commitApply(ns engine.State, events []engine.Event, err error) ([]engine.Event, error) {
 	if err != nil {
-		return nil, err // engine.IllegalAction, state untouched
+		return nil, err
 	}
 	if inv := engine.CheckInvariants(ns); inv != nil {
-		// A broken invariant after Apply is an engine bug — surface it, do not commit
-		// the corrupt state.
 		return nil, inv
 	}
 	s.state = ns
