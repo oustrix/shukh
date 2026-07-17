@@ -7,7 +7,7 @@ import (
 func TestSnapshotLobbyHasRosterNoView(t *testing.T) {
 	s := NewSession(cfg36(), "h", "Host")
 	_ = s.Join("p2", "Bob")
-	up, err := s.Snapshot("h")
+	up, err := s.SnapshotFor("h")
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
@@ -23,7 +23,7 @@ func TestSnapshotPlayingHidesOpponents(t *testing.T) {
 	s := NewSession(cfg36(), "h", "Host")
 	_ = s.Join("p2", "Bob")
 	_ = s.Start("h", 42)
-	up, err := s.Snapshot("h")
+	up, err := s.SnapshotFor("h")
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestSnapshotPlayingHidesOpponents(t *testing.T) {
 
 func TestSnapshotUnknownPlayer(t *testing.T) {
 	s := NewSession(cfg36(), "h", "Host")
-	if _, err := s.Snapshot("ghost"); err != ErrUnknownPlayer {
+	if _, err := s.SnapshotFor("ghost"); err != ErrUnknownPlayer {
 		t.Fatalf("want ErrUnknownPlayer, got %v", err)
 	}
 }

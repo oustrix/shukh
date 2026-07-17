@@ -48,9 +48,10 @@ func (s *Session) project(id PlayerID, roster []SeatMeta, events []engine.Event)
 	return up
 }
 
-// Snapshot returns the current projection for id (no events). Errors if id is not
-// seated.
-func (s *Session) Snapshot(id PlayerID) (Update, error) {
+// SnapshotFor returns the current per-seat projection for id (no events). Errors if
+// id is not seated. Renamed from Snapshot so that name is free for the durable
+// SessionState snapshot (persist.go); Layer 2 uses this for slow-consumer recovery.
+func (s *Session) SnapshotFor(id PlayerID) (Update, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.seatOf(id); !ok {

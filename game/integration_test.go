@@ -23,7 +23,7 @@ func forward(a engine.Action) bool {
 // player to submit it and the action. ok=false means no seat has a forward move.
 func nextForward(s *Session) (PlayerID, engine.Action, bool) {
 	for _, id := range []PlayerID{"h", "p2"} {
-		up, err := s.Snapshot(id)
+		up, err := s.SnapshotFor(id)
 		if err != nil {
 			continue
 		}
@@ -54,7 +54,7 @@ func TestIntegrationDuelPlaysToFinish(t *testing.T) {
 		t.Fatal("game did not finish within the step budget")
 	}
 	// After finish, the engine state carries the full ranking (R-9.2/R-10.1).
-	final, _ := s.Snapshot("h")
+	final, _ := s.SnapshotFor("h")
 	if len(final.View.Finish) != 2 {
 		t.Fatalf("finished game must rank both players, got %v", final.View.Finish)
 	}
@@ -66,7 +66,7 @@ func TestIntegrationSubjectiveShukhVote(t *testing.T) {
 	if _, err := s.Submit("h", engine.ClaimSubjective{Claimant: 0, Target: 1, Code: engine.Sh6}); err != nil {
 		t.Fatalf("claim rejected: %v", err)
 	}
-	up, _ := s.Snapshot("p2")
+	up, _ := s.SnapshotFor("p2")
 	if len(up.Legal) != 2 {
 		t.Fatalf("during the vote p2 must see 2 Vote options, got %d", len(up.Legal))
 	}
@@ -86,7 +86,7 @@ func TestIntegrationSubjectiveShukhVote(t *testing.T) {
 	if !sawResolved {
 		t.Fatal("full turnout must emit VoteResolved")
 	}
-	after, _ := s.Snapshot("h")
+	after, _ := s.SnapshotFor("h")
 	// vote cleared → normal play resumes (or a §8 payment gate is open, but the
 	// Adjudication itself is gone): the mover has legal actions again.
 	if len(after.Legal) == 0 && after.Stage == Playing {

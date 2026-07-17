@@ -28,14 +28,30 @@ type SeatView struct {
 
 	Live   map[SeatID]bool // who is still in the game
 	Finish []SeatID        // finishing order → places (R‑9.2)
+
+	// Vote summarizes the open R-8.6 adjudication for a reconnecting/observing seat
+	// (§8.3): who raised what against whom and which seats have already cast a ballot
+	// (the fact only — never how). nil when no vote is open.
+	Vote *VoteView
 }
 
 // OpponentView is the public projection of one other seat: counts only.
 type OpponentView struct {
 	Seat         SeatID
-	HandCount    int  // number of cards in hand (public)
-	ShukhPending int  // number of awaiting ШУХ cards (public, I‑3)
+	HandCount    int // number of cards in hand (public)
+	ShukhPending int // number of awaiting ШУХ cards (public, I‑3)
 	Live         bool
+}
+
+// VoteView is the public summary of an open R-8.6 table vote (§8.3). It exposes the
+// dispute (Claimant/Target/Code) and Voted — the seats that have cast a ballot, in
+// ascending order — but never how anyone voted: the ballot stays secret until the
+// vote resolves (§8.4).
+type VoteView struct {
+	Claimant SeatID
+	Target   SeatID
+	Code     ShukhCode
+	Voted    []SeatID
 }
 
 // View builds the projection of s for seat (D‑9). It is pure and does not mutate
@@ -69,5 +85,18 @@ func View(s State, seat SeatID) SeatView {
 		})
 	}
 	maps.Copy(v.Live, s.Live)
+	if s.Adjudication != nil {
+		voted := make([]SeatID, 0, len(s.Adjudication.Votes))
+		for seat := range s.Adjudication.Votes {
+			voted = append(voted, seat)
+		}
+		slices.Sort(voted) // ascending; expose only the fact of a ballot (§8.4)
+		v.Vote = &VoteView{
+			Claimant: s.Adjudication.Claimant,
+			Target:   s.Adjudication.Target,
+			Code:     s.Adjudication.Code,
+			Voted:    voted,
+		}
+	}
 	return v
 }

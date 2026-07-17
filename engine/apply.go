@@ -31,7 +31,14 @@ func Apply(s State, a Action) (State, []Event, error) {
 
 	// A non-claim action taken while a catch-window is open settles it (R-1.4.1):
 	// the offending action «прижилось» and stays. ClaimShukh instead reverses it.
-	if _, isClaim := a.(ClaimShukh); !isClaim && ns.Unsettled != nil {
+	// CloseVote is a system action (not a player move) and must never settle a
+	// catch-window either: while a vote is genuinely open, §15.8 guarantees
+	// Unsettled == nil already, so this exclusion only matters for the no-op path
+	// (Adjudication == nil), keeping CloseVote harmless there per its contract.
+	switch a.(type) {
+	case ClaimShukh, CloseVote:
+		// don't settle
+	default:
 		ns.Unsettled = nil
 	}
 
@@ -172,6 +179,13 @@ func Apply(s State, a Action) (State, []Event, error) {
 		if len(ns.Adjudication.Votes) == len(ns.Seats) {
 			ns.resolveAdjudication(&events)
 		}
+	case CloseVote:
+		// Force-resolve with the ballots present (L2-1). Missing votes are simply not
+		// tallied as «против ШУХа», so the R-8.6 formula (support*2 > n) is unchanged.
+		// No open vote → harmless no-op: the clone is returned untouched, events nil.
+		if ns.Adjudication != nil {
+			ns.resolveAdjudication(&events)
+		}
 	default:
 		// All turn-actions produced by LegalActions are wired above; this is a
 		// safety net for a genuinely-unknown Action (e.g. a bug in LegalActions or
@@ -215,6 +229,13 @@ func isLegal(s State, a Action) bool {
 			s.Live[act.Claimant] && s.Live[act.Target] && act.Claimant != act.Target
 	case Vote:
 		return s.Adjudication != nil && s.voterEligible(act.Voter) && !s.hasVoted(act.Voter)
+	case CloseVote:
+		// A system resolution primitive (L2-1), never enumerated by LegalActions. It
+		// is always permitted to reach Apply: with an open vote it resolves it with a
+		// partial tally, with none it is a harmless no-op (the Apply branch below
+		// guards on Adjudication). Design §8.1/§9 requires the closed case to be a
+		// no-op, not an error — hence unconditional true rather than `Adjudication != nil`.
+		return true
 	default:
 		return slices.Contains(LegalActions(s, s.Turn), a)
 	}
@@ -328,6 +349,12 @@ func (s *State) reconcileOneCard(before map[SeatID]int) {
 		}
 	}
 }
+
+// Clone returns a deep copy of s suitable for handing across a layer boundary
+// (Layer 1 Snapshot/Restore): every mutated map and slice is fresh and no pointer
+// target (Pending/Unsettled/Adjudication) is aliased, so the copy shares no storage
+// with the original. It is the exported form of the internal copy-on-write clone.
+func (s State) Clone() State { return s.clone() }
 
 // clone returns a deep-enough copy for copy-on-write: all mutated maps and slices
 // are fresh. Seats is immutable for the game and shared.

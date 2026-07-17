@@ -7,6 +7,12 @@ import "github.com/oustrix/shukh/engine"
 // it advances authoritative state, updates the lifecycle, fans out to subscribers,
 // and returns the events. On any rejection state is untouched and nothing is
 // fanned out.
+//
+// L2-4 delivery contract: the returned events are an ACK echo for the caller only —
+// the authoritative render path is the subscription (fanout has already delivered the
+// same change to every seat, including this one). Layer 2 MUST render from the
+// subscription and MUST NOT re-emit or re-render from this return value; treat it as
+// «accepted», nothing more.
 func (s *Session) Submit(id PlayerID, a engine.Action) ([]engine.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -20,13 +26,18 @@ func (s *Session) Submit(id PlayerID, a engine.Action) ([]engine.Event, error) {
 	if err := s.authorize(seat, a); err != nil {
 		return nil, err
 	}
-	ns, events, err := engine.Apply(s.state, a)
+	return s.commitApply(engine.Apply(s.state, a))
+}
+
+// commitApply commits the result of an engine.Apply under s.mu (caller holds it):
+// on error it returns it untouched; otherwise it verifies invariants (surfacing a
+// broken one without committing), advances state + lifecycle, fans out, and returns
+// the events.
+func (s *Session) commitApply(ns engine.State, events []engine.Event, err error) ([]engine.Event, error) {
 	if err != nil {
-		return nil, err // engine.IllegalAction, state untouched
+		return nil, err
 	}
 	if inv := engine.CheckInvariants(ns); inv != nil {
-		// A broken invariant after Apply is an engine bug — surface it, do not commit
-		// the corrupt state.
 		return nil, inv
 	}
 	s.state = ns

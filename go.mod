@@ -2,7 +2,10 @@ module github.com/oustrix/shukh
 
 go 1.26.1
 
-require github.com/stretchr/testify v1.11.1
+require (
+	github.com/coder/websocket v1.8.15
+	github.com/stretchr/testify v1.11.1
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

@@ -22,7 +22,7 @@ func startedDuel(t *testing.T) *Session {
 
 func TestSubmitRejectsOffTurnImpersonation(t *testing.T) {
 	s := startedDuel(t)
-	up, _ := s.Snapshot("h")
+	up, _ := s.SnapshotFor("h")
 	// Find whichever player is NOT to move and have them try a turn-action.
 	mover := up.View.Turn
 	var idler PlayerID = "h"
@@ -30,7 +30,7 @@ func TestSubmitRejectsOffTurnImpersonation(t *testing.T) {
 		idler = "p2"
 	}
 	// idler tries to play the first card in *its own* hand out of turn.
-	idlerUp, _ := s.Snapshot(idler)
+	idlerUp, _ := s.SnapshotFor(idler)
 	if len(idlerUp.View.Hand) == 0 {
 		t.Skip("idler has no cards to attempt with")
 	}
