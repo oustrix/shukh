@@ -35,6 +35,11 @@ type Room struct {
 
 	// live sockets, for double-connect eviction (§6); populated in Task 16.
 	socks map[game.PlayerID]*wsConn
+
+	// closed gates persist() after Hub.sweep has removed the room from the registry
+	// and stopped its timers, so a callback racing the sweep cannot resurrect the
+	// room in the store (§5.3 GC / store write-through invariant).
+	closed bool
 }
 
 // NewRoom creates a room seated by the host: it builds the session, mints the host
@@ -108,9 +113,32 @@ func (r *Room) seatOf(pid game.PlayerID) engine.SeatID {
 	return -1
 }
 
+// close stops all pending timers (vote + grace) and marks the room closed so any
+// subsequent persist() becomes a no-op. Hub.sweep calls this after removing the
+// room from the registry and before deleting it from the store, so a fireVote or
+// graceExpired callback already in flight cannot resurrect a store entry for a
+// room the Hub no longer tracks. Idempotent.
+func (r *Room) close() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.voteTimer != nil {
+		r.voteTimer.Stop()
+		r.voteTimer = nil
+	}
+	for pid, t := range r.graceTimers {
+		t.Stop()
+		delete(r.graceTimers, pid)
+	}
+	r.closed = true
+}
+
 // persist write-throughs the durable snapshot (§4). Caller holds r.mu (except the
-// pre-publication call in NewRoom).
+// pre-publication call in NewRoom). A no-op once the room is closed (see close()),
+// so a late timer callback cannot resurrect a swept room in the store.
 func (r *Room) persist() {
+	if r.closed {
+		return
+	}
 	snap := RoomSnapshot{
 		Code:    r.code,
 		Tokens:  r.tokens,

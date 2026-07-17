@@ -58,20 +58,29 @@ func (h *Hub) Room(code string) (*Room, bool) {
 
 // sweep removes collectible rooms (no live sockets past grace, or Finished past
 // idle-TTL) from the registry and the store. Lock order: h.mu then each r.mu.
+//
+// Each dead room is close()d (stopping its vote/grace timers and gating further
+// persist calls) before its store entry is deleted. Ordering matters: close()
+// first disarms any in-flight fireVote/graceExpired callback so it cannot re-Save
+// the room after the Hub has stopped tracking it; only then do we delete, which
+// also clears any entry a persist that raced ahead of close() may have written.
 func (h *Hub) sweep() {
 	now := h.clock.Now()
 	h.mu.Lock()
 	var dead []string
+	var deadRooms []*Room
 	for code, r := range h.rooms {
 		if r.collectible(now) {
 			dead = append(dead, code)
+			deadRooms = append(deadRooms, r)
 		}
 	}
 	for _, code := range dead {
 		delete(h.rooms, code)
 	}
 	h.mu.Unlock()
-	for _, code := range dead {
+	for i, code := range dead {
+		deadRooms[i].close()
 		_ = h.store.Delete(code)
 	}
 }
