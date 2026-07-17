@@ -13,11 +13,6 @@ const (
 	graceTTL = 5 * time.Minute  // reconnect grace before a lobby Leave (§5.4)
 )
 
-// wsConn is a placeholder for the live-socket handle wired in Task 16 (§6, WebSocket
-// connection). It exists only so Room.socks compiles now; Task 16 replaces it with
-// the real connection type and fleshes out double-connect eviction.
-type wsConn struct{}
-
 // Room wraps one *game.Session with the Layer-2 machinery: room code, token→PlayerID
 // table, storage write-through, timers (vote, grace), and connection bookkeeping.
 // The session holds all game state; Room adds only transport.
