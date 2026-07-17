@@ -4,11 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/coder/websocket"
 
 	"github.com/oustrix/shukh/game"
 )
+
+// writeTimeout bounds a single WS write. A connected-but-unresponsive client (e.g. full
+// TCP receive window) would otherwise block the write pump forever, pinning r.live
+// (blocking that room's GC) and leaking the pump goroutine.
+const writeTimeout = 10 * time.Second
 
 // wsConn is one live socket. All writes for a socket go through its write pump (the
 // single writer), so acks/errors and nudged snapshots are queued on out/nudge rather
@@ -111,7 +117,13 @@ func (r *Room) writeMsg(ctx context.Context, wc *wsConn, m ServerMsg) {
 	if err != nil {
 		return
 	}
-	_ = wc.conn.Write(ctx, websocket.MessageText, data)
+	wctx, cancel := context.WithTimeout(ctx, writeTimeout)
+	defer cancel()
+	if err := wc.conn.Write(wctx, websocket.MessageText, data); err != nil {
+		// Slow/dead client (e.g. full receive window): tear down this socket so the
+		// write pump exits and r.live is released (otherwise the room never GCs).
+		wc.cancel()
+	}
 }
 
 func (r *Room) voteDeadlineSafe() *int64 {
