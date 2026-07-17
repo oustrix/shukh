@@ -8,6 +8,11 @@ import (
 	"github.com/oustrix/shukh/game"
 )
 
+const (
+	voteTTL  = 30 * time.Second // R-8.6 vote deadline (L2-1)
+	graceTTL = 5 * time.Minute  // reconnect grace before a lobby Leave (§5.4)
+)
+
 // wsConn is a placeholder for the live-socket handle wired in Task 16 (§6, WebSocket
 // connection). It exists only so Room.socks compiles now; Task 16 replaces it with
 // the real connection type and fleshes out double-connect eviction.
@@ -117,4 +122,93 @@ func (r *Room) persist() {
 		Session: r.session.Snapshot(),
 	}
 	_ = r.store.Save(snap) // MemStore never errors; a real store would log/retry
+}
+
+// commit records the durable snapshot and updates the vote timer after a
+// state-changing session call. A VoteOpened in the events arms the deadline; a
+// VoteResolved disarms it. Caller holds r.mu.
+func (r *Room) commit(events []engine.Event) {
+	for _, e := range events {
+		switch e.(type) {
+		case engine.VoteOpened:
+			r.armVote()
+		case engine.VoteResolved:
+			r.disarmVote()
+		}
+	}
+	r.persist()
+}
+
+// armVote sets a voteTTL deadline whose expiry closes the vote. Caller holds r.mu.
+func (r *Room) armVote() {
+	if r.voteTimer != nil {
+		r.voteTimer.Stop()
+	}
+	deadline := r.clock.Now().Add(voteTTL).UnixMilli()
+	r.voteDeadline = &deadline
+	r.voteTimer = r.clock.AfterFunc(voteTTL, r.fireVote)
+}
+
+// disarmVote cancels the vote timer and clears the deadline. Caller holds r.mu.
+func (r *Room) disarmVote() {
+	if r.voteTimer != nil {
+		r.voteTimer.Stop()
+		r.voteTimer = nil
+	}
+	r.voteDeadline = nil
+}
+
+// fireVote runs on the clock goroutine when the deadline elapses: it closes the vote
+// with the current ballots (CloseVote fans the resolution out itself) and updates
+// the timer state. A resolve that already happened makes CloseVote a no-op (§8.2).
+func (r *Room) fireVote() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	events, err := r.session.CloseVote()
+	if err != nil {
+		return
+	}
+	r.commit(events)
+}
+
+// currentVoteDeadline returns a copy of the active vote deadline (unix-ms) or nil.
+// Caller holds r.mu.
+func (r *Room) currentVoteDeadline() *int64 {
+	if r.voteDeadline == nil {
+		return nil
+	}
+	d := *r.voteDeadline
+	return &d
+}
+
+// onDisconnect starts a grace timer for pid after its socket drops (§5.4). It does
+// NOT Leave immediately: the seat is held so a reconnect within grace is seamless.
+func (r *Room) onDisconnect(pid game.PlayerID) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if t, ok := r.graceTimers[pid]; ok {
+		t.Stop()
+	}
+	r.graceTimers[pid] = r.clock.AfterFunc(graceTTL, func() { r.graceExpired(pid) })
+}
+
+// graceExpired runs when a disconnect's grace elapses. In the Lobby it Leaves (which
+// migrates the host per L2-3); while Playing the seat is kept — the engine has no
+// fold, so a general turn-timeout is future work (§12).
+func (r *Room) graceExpired(pid game.PlayerID) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.graceTimers, pid)
+	if r.session.Stage() == game.Lobby {
+		r.session.Leave(pid)
+		r.persist()
+	}
+}
+
+// cancelGrace stops any pending grace timer for pid (on reconnect). Caller holds r.mu.
+func (r *Room) cancelGrace(pid game.PlayerID) {
+	if t, ok := r.graceTimers[pid]; ok {
+		t.Stop()
+		delete(r.graceTimers, pid)
+	}
 }
