@@ -212,3 +212,30 @@ func (r *Room) cancelGrace(pid game.PlayerID) {
 		delete(r.graceTimers, pid)
 	}
 }
+
+// noteConnOpened / noteConnClosed maintain the live-socket count and the empty
+// timestamp used by Hub.sweep. Caller holds r.mu.
+func (r *Room) noteConnOpened() { r.live++ }
+
+func (r *Room) noteConnClosed() {
+	if r.live > 0 {
+		r.live--
+	}
+	if r.live == 0 {
+		r.emptyAt = r.clock.Now()
+	}
+}
+
+// collectible reports whether the room may be garbage-collected at now: no live
+// sockets for longer than grace, or Finished and idle past idleTTL (§5.3).
+func (r *Room) collectible(now time.Time) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.live > 0 {
+		return false
+	}
+	if r.session.Stage() == game.Finished {
+		return now.Sub(r.emptyAt) >= idleTTL
+	}
+	return now.Sub(r.emptyAt) >= graceTTL
+}
