@@ -106,6 +106,9 @@ func (s *Server) connect(w http.ResponseWriter, req *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "seatNotFound"})
 		return
 	}
+	// TODO(prod): InsecureSkipVerify disables the WebSocket Origin check (CSWSH risk).
+	// Before any real deployment, narrow to OriginPatterns for the allowed host(s) and
+	// set the reconnect cookie Secure (L2-6). Acceptable only for local dev / MVP.
 	c, err := websocket.Accept(w, req, &websocket.AcceptOptions{InsecureSkipVerify: true})
 	if err != nil {
 		return
