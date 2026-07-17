@@ -143,7 +143,13 @@ func TestIntegrationVoteTimeoutAndReconnect(t *testing.T) {
 	host3 := dialClient(t, ctx, wsURL, hostCookie)
 	defer host3.c.CloseNow()
 	host3.read() // fresh snapshot on the new socket
-	if _, _, err := host2.c.Read(ctx); err == nil {
+	// A working eviction closes the previous socket promptly; use a short dedicated
+	// deadline so a broken eviction fails fast (rather than pass-slow on the shared ctx).
+	dctx, dcancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer dcancel()
+	if _, _, err := host2.c.Read(dctx); err == nil {
 		t.Fatal("double-connect must close the previously connected socket")
+	} else if dctx.Err() != nil {
+		t.Fatalf("evicted socket did not close within 2s (eviction likely broken): %v", err)
 	}
 }
