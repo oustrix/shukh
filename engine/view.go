@@ -38,8 +38,8 @@ type SeatView struct {
 // OpponentView is the public projection of one other seat: counts only.
 type OpponentView struct {
 	Seat         SeatID
-	HandCount    int  // number of cards in hand (public)
-	ShukhPending int  // number of awaiting ШУХ cards (public, I‑3)
+	HandCount    int // number of cards in hand (public)
+	ShukhPending int // number of awaiting ШУХ cards (public, I‑3)
 	Live         bool
 }
 
