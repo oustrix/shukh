@@ -2,6 +2,8 @@ package game
 
 import (
 	"testing"
+
+	"github.com/oustrix/shukh/engine"
 )
 
 func TestSnapshotLobbyHasRosterNoView(t *testing.T) {
@@ -46,5 +48,28 @@ func TestSnapshotUnknownPlayer(t *testing.T) {
 	s := NewSession(cfg36(), "h", "Host")
 	if _, err := s.SnapshotFor("ghost"); err != ErrUnknownPlayer {
 		t.Fatalf("want ErrUnknownPlayer, got %v", err)
+	}
+}
+
+func TestUpdateCarriesHostSeat(t *testing.T) {
+	s := NewSession(Config{Rules: engine.RuleSet{DeckSize: engine.Deck36}, Mode: engine.Middle}, "p-host", "Host")
+	if err := s.Join("p-bob", "Bob"); err != nil {
+		t.Fatalf("join: %v", err)
+	}
+	up, err := s.SnapshotFor("p-bob")
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if up.Host != 0 {
+		t.Fatalf("host must be seat 0, got %d", up.Host)
+	}
+	// Хост ушёл из лобби → роль мигрирует на следующего (L2-3), и это видно в проекции.
+	s.Leave("p-host")
+	up, err = s.SnapshotFor("p-bob")
+	if err != nil {
+		t.Fatalf("snapshot after leave: %v", err)
+	}
+	if up.Host != 0 {
+		t.Fatalf("after migration Bob (seat 0) must be host, got %d", up.Host)
 	}
 }
