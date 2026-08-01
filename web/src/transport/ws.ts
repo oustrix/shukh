@@ -52,6 +52,19 @@ export function createWsTransport(code: string, deps: WsDeps = {}): Transport {
     handlers?.onStatus(status)
   }
 
+  // Единая точка полного глушения: терминальная ошибка, ручной close() и отписка
+  // (см. subscribe ниже) идут через неё, чтобы ни одна из них не забыла погасить
+  // таймер реконнекта или закрыть сокет — именно рассинхрон этих трёх путей и был
+  // источником обеих находок ревью (сообщение после lost, реконнект после unsubscribe).
+  function teardown() {
+    stopped = true
+    cancelRetry?.()
+    cancelRetry = null
+    socket?.close()
+    socket = null
+    handlers = null
+  }
+
   function retryLater() {
     if (stopped) return
     const delay = Math.min(BACKOFF_BASE_MS * 2 ** attempt, BACKOFF_CAP_MS)
@@ -86,6 +99,10 @@ export function createWsTransport(code: string, deps: WsDeps = {}): Transport {
       setStatus('open')
     }
     s.onmessage = (e) => {
+      // Терминальное состояние обязано быть терминальным: без этой проверки кадр,
+      // уже стоявший в очереди микрозадач до close()/lost, всё равно дошёл бы до
+      // onSnapshot на мёртвом, но ещё не отписанном от событий сокете.
+      if (stopped) return
       let decoded
       try {
         decoded = decodeServerMsg(JSON.parse(e.data))
@@ -102,9 +119,10 @@ export function createWsTransport(code: string, deps: WsDeps = {}): Transport {
       }
       if (decoded.kind === 'error') {
         if (TERMINAL.has(decoded.error.code)) {
-          stopped = true
-          socket?.close()
+          // Статус — до teardown(): setStatus читает ещё живой handlers, а сама
+          // teardown() следом обнуляет его и глушит сокет/таймер.
           setStatus('lost', decoded.error)
+          teardown()
           return
         }
         setStatus(status.state, decoded.error)
@@ -128,9 +146,12 @@ export function createWsTransport(code: string, deps: WsDeps = {}): Transport {
       handlers = h
       h.onStatus(status)
       connect()
-      return () => {
-        handlers = null
-      }
+      // subscribe() — не список подписчиков, а единственный канал: отписка означает,
+      // что слушателя больше нет вовсе, поэтому она равносильна close(), а не просто
+      // снятию колбэков. Следующая задача (room-стор) вызовет её из cleanup React-эффекта
+      // при уходе с экрана комнаты — там ожидание ровно такое: уход = полная остановка
+      // сокета и отменённый реконнект, а не тихо живущее в фоне соединение.
+      return () => teardown()
     },
     send(action: Action) {
       // Отложенная доставка запрещена (W3-5): за время обрыва позиция ушла вперёд.
@@ -139,12 +160,7 @@ export function createWsTransport(code: string, deps: WsDeps = {}): Transport {
       socket.send(JSON.stringify({ type: 'action', action: encodeAction(action), reqId: `a${seq}` }))
     },
     close() {
-      stopped = true
-      cancelRetry?.()
-      cancelRetry = null
-      socket?.close()
-      socket = null
-      handlers = null
+      teardown()
     },
   }
 }

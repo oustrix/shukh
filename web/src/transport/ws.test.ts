@@ -46,6 +46,7 @@ interface Harness {
   snapshots: GameSnapshot[]
   transport: ReturnType<typeof createWsTransport>
   runTimers: () => void
+  unsubscribe: () => void
 }
 
 function harness(probeResult: 'seat' | 'seatNotFound' | 'roomNotFound' = 'seat'): Harness {
@@ -68,8 +69,14 @@ function harness(probeResult: 'seat' | 'seatNotFound' | 'roomNotFound' = 'seat')
     onEvent: () => {},
     onStatus: (s) => statuses.push(s),
   }
-  transport.subscribe(handlers)
-  return { statuses, snapshots, transport, runTimers: () => pending.splice(0).forEach((fn) => fn()) }
+  const unsubscribe = transport.subscribe(handlers)
+  return {
+    statuses,
+    snapshots,
+    transport,
+    runTimers: () => pending.splice(0).forEach((fn) => fn()),
+    unsubscribe,
+  }
 }
 
 describe('transport/ws', () => {
@@ -137,5 +144,59 @@ describe('transport/ws', () => {
     expect(FakeSocket.last!.closed).toBe(true)
     h.runTimers()
     expect(FakeSocket.created).toBe(1)
+  })
+
+  it('сообщение на том же сокете после terminal lost игнорируется', () => {
+    const h = harness()
+    FakeSocket.last!.open()
+    const socket = FakeSocket.last!
+    socket.message(JSON.stringify({ type: 'error', code: 'seatNotFound', message: 'gone' }))
+    expect(h.statuses.at(-1)?.state).toBe('lost')
+    // Кадр, пришедший на тот же (уже закрытый нами, но не отписанный от событий
+    // в фейке) сокет, не должен просочиться в onSnapshot — терминальность обязана
+    // быть терминальной.
+    socket.message(playingJSON)
+    expect(h.snapshots).toHaveLength(0)
+  })
+
+  it('unsubscribe из subscribe() гасит запланированный реконнект (эффект-cleanup = close)', () => {
+    const h = harness()
+    FakeSocket.last!.open()
+    FakeSocket.last!.drop()
+    expect(h.statuses.at(-1)?.state).toBe('reconnecting')
+    expect(FakeSocket.created).toBe(1)
+    h.unsubscribe()
+    h.runTimers()
+    expect(FakeSocket.created).toBe(1)
+  })
+
+  it('проба, резолвящаяся после close(), не создаёт сокет и не меняет статус', async () => {
+    FakeSocket.last = null
+    FakeSocket.created = 0
+    const pending: (() => void)[] = []
+    const statuses: ConnStatus[] = []
+    let resolveProbe: ((r: MeResult) => void) | null = null
+    const transport = createWsTransport('ABCD', {
+      socketFactory: (url) => new FakeSocket(url),
+      schedule: (fn) => {
+        pending.push(fn)
+        return () => {}
+      },
+      probe: () =>
+        new Promise<MeResult>((resolve) => {
+          resolveProbe = resolve
+        }),
+    })
+    transport.subscribe({ onSnapshot: () => {}, onEvent: () => {}, onStatus: (s) => statuses.push(s) })
+    // Обрыв до открытия идёт через пробу, а не сразу в бэкофф (§7.7).
+    FakeSocket.last!.drop()
+    expect(statuses.at(-1)?.state).toBe('reconnecting')
+    transport.close()
+    resolveProbe!({ kind: 'seat', seat: 1 })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(FakeSocket.created).toBe(1)
+    expect(statuses.at(-1)?.state).toBe('reconnecting')
+    expect(pending).toHaveLength(0)
   })
 })
