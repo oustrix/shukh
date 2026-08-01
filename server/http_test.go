@@ -118,6 +118,54 @@ func TestRoutesAndCookieScope(t *testing.T) {
 	}
 }
 
+func TestProbeMe(t *testing.T) {
+	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
+	srv := httptest.NewServer(NewServer(h, Options{}).Handler())
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	var created struct {
+		Code string `json:"code"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	resp.Body.Close()
+	ck := findCookie(resp.Cookies(), cookieName(created.Code))
+
+	probe := func(code string, cookie *http.Cookie) (int, string) {
+		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/rooms/"+code+"/me", nil)
+		if cookie != nil {
+			req.AddCookie(cookie)
+		}
+		r, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("probe: %v", err)
+		}
+		defer r.Body.Close()
+		var body struct {
+			Seat  *int   `json:"seat"`
+			Error string `json:"error"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Seat != nil {
+			return r.StatusCode, "seat"
+		}
+		return r.StatusCode, body.Error
+	}
+
+	if st, what := probe(created.Code, ck); st != http.StatusOK || what != "seat" {
+		t.Fatalf("with cookie: %d/%s, want 200/seat", st, what)
+	}
+	if st, what := probe(created.Code, nil); st != http.StatusUnauthorized || what != "seatNotFound" {
+		t.Fatalf("without cookie: %d/%s, want 401/seatNotFound", st, what)
+	}
+	if st, what := probe("ZZZZ", ck); st != http.StatusNotFound || what != "roomNotFound" {
+		t.Fatalf("unknown room: %d/%s, want 404/roomNotFound", st, what)
+	}
+}
+
 func TestCrossSiteCookieMode(t *testing.T) {
 	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
 	srv := httptest.NewServer(NewServer(h, Options{CrossSite: true}).Handler())

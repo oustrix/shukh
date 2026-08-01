@@ -34,6 +34,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/rooms", s.createRoom)
 	mux.HandleFunc("POST /api/rooms/{code}/join", s.joinRoom)
+	mux.HandleFunc("GET /api/rooms/{code}/me", s.me)
 	mux.HandleFunc("GET /ws/{code}", s.connect)
 	return mux
 }
@@ -105,6 +106,35 @@ func (s *Server) joinRoom(w http.ResponseWriter, req *http.Request) {
 	pid, _ := room.playerFor(tok)
 	http.SetCookie(w, s.roomCookie(code, tok))
 	writeJSON(w, http.StatusOK, map[string]int{"seat": int(room.seatOf(pid))})
+}
+
+// me reports whether the caller already holds a seat in this room. The browser WS
+// API hides the handshake status, so a failed socket is indistinguishable from a
+// dead server without this probe; it also drives the invite-link flow (§7.7).
+func (s *Server) me(w http.ResponseWriter, req *http.Request) {
+	code := req.PathValue("code")
+	room, ok := s.hub.Room(code)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "roomNotFound"})
+		return
+	}
+	ck, err := req.Cookie(cookieName(code))
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "seatNotFound"})
+		return
+	}
+	pid, ok := room.playerFor(Token(ck.Value))
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "seatNotFound"})
+		return
+	}
+	seat := room.seatOf(pid)
+	if seat < 0 {
+		// Token is valid but the seat was released (grace expired in the lobby).
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "seatNotFound"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"seat": int(seat)})
 }
 
 func (s *Server) connect(w http.ResponseWriter, req *http.Request) {
