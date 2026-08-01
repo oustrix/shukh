@@ -17,6 +17,10 @@ export type EnforcementMode = 'guard' | 'middle' | 'culture'
 // Коды ШУХов (§7 правил): объективные ловит движок, субъективные идут через голосование R-8.6.
 export type ShukhCode = 2 | 3 | 6 | 8 | 9 | 10 | 11 | 12
 
+// Полный перечень кодов ШУХ как рантайм-значение — единственное место, откуда его
+// берут (напр. кодек для проверки code с провода); саму цифру нигде больше не дублируем.
+export const ALL_SHUKH_CODES = [2, 3, 6, 8, 9, 10, 11, 12] as const satisfies readonly ShukhCode[]
+
 // Ш-6 «завис» (R-8.4), Ш-9 «зря крикнул» (R-8.7), Ш-10 «небрежность» (R-8.8) —
 // единственные, что предъявляются вручную через claimSubjective.
 export const SUBJECTIVE_CODES = [6, 9, 10] as const satisfies readonly ShukhCode[]

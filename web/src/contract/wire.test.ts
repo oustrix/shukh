@@ -75,6 +75,12 @@ describe('decodeServerMsg — конверты и защита', () => {
     expect(() => decodeServerMsg(bad)).toThrow(WireError)
   })
 
+  it('код ШУХа вне множества допустимых — тоже громкая ошибка, а не as-каст мимо', () => {
+    const bad = fixture('vote_open')
+    bad.view.vote.code = 7 // 7 не входит в ShukhCode — намеренно пропущенное число
+    expect(() => decodeServerMsg(bad)).toThrow(WireError)
+  })
+
   it('неизвестный конверт — тоже ошибка', () => {
     expect(() => decodeServerMsg({ type: 'gossip' })).toThrow(WireError)
   })

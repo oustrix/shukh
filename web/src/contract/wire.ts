@@ -1,3 +1,4 @@
+import { ALL_SHUKH_CODES } from './types'
 import type {
   Action,
   Card,
@@ -59,7 +60,16 @@ function decodeCard(v: unknown): Card {
 }
 const decodeCards = (v: unknown): Card[] => arr(v, 'cards').map(decodeCard)
 const decodeSeats = (v: unknown): SeatID[] => arr(v, 'seats').map((s) => num(s, 'seat'))
-const decodeCode = (v: unknown): ShukhCode => num(v, 'code') as ShukhCode
+// Раннер, а не as-каст: код проверяется на принадлежность ALL_SHUKH_CODES (types.ts),
+// иначе рассинхрон зеркал или баг энкодера тихо просочился бы дальше как «валидный» ShukhCode.
+function isShukhCode(n: number): n is ShukhCode {
+  return (ALL_SHUKH_CODES as readonly number[]).includes(n)
+}
+function decodeCode(v: unknown): ShukhCode {
+  const n = num(v, 'code')
+  if (!isShukhCode(n)) throw new WireError(`unknown shukh code ${n}`)
+  return n
+}
 
 function decodeVote(v: unknown): VoteView {
   const o = obj(v, 'vote')
