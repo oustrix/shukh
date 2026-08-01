@@ -1,0 +1,85 @@
+{
+  "type": "update",
+  "you": 1,
+  "host": 0,
+  "roomCode": "ABCD",
+  "stage": "playing",
+  "roster": [
+    {
+      "name": "Вера",
+      "seat": 0
+    },
+    {
+      "name": "Боря",
+      "seat": 1
+    }
+  ],
+  "view": {
+    "discard": 3,
+    "finish": [],
+    "hand": [
+      {
+        "suit": "♥",
+        "rank": 6
+      },
+      {
+        "suit": "♠",
+        "rank": 14
+      }
+    ],
+    "live": {
+      "0": true,
+      "1": true
+    },
+    "mode": "middle",
+    "opponents": [
+      {
+        "handCount": 5,
+        "live": true,
+        "seat": 0,
+        "shukhPending": 0
+      }
+    ],
+    "phase": "playing",
+    "rules": {
+      "deckSize": 36,
+      "jokers": false,
+      "podkladkaSnizu": false
+    },
+    "shukhPending": 1,
+    "table": [
+      {
+        "by": 0,
+        "card": {
+          "suit": "♣",
+          "rank": 7
+        }
+      }
+    ],
+    "talon": 18,
+    "turn": 1,
+    "you": 1
+  },
+  "legal": [
+    {
+      "card": {
+        "suit": "♠",
+        "rank": 14
+      },
+      "type": "playCard"
+    },
+    {
+      "type": "takeBottomAndPass"
+    }
+  ],
+  "events": [
+    {
+      "card": {
+        "suit": "♣",
+        "rank": 7
+      },
+      "seat": 0,
+      "type": "cardPlayed"
+    }
+  ]
+}
