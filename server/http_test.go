@@ -14,11 +14,11 @@ import (
 
 func TestHTTPCreateJoinConnect(t *testing.T) {
 	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
-	srv := httptest.NewServer(NewServer(h).Handler())
+	srv := httptest.NewServer(NewServer(h, Options{}).Handler())
 	defer srv.Close()
 
 	// create room
-	resp, err := http.Post(srv.URL+"/r", "application/json", strings.NewReader(`{"name":"Host"}`))
+	resp, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestHTTPCreateJoinConnect(t *testing.T) {
 	}
 
 	// join room → seat + cookie
-	jresp, err := http.Post(srv.URL+"/r/"+created.Code+"/join", "application/json", strings.NewReader(`{"name":"Bob"}`))
+	jresp, err := http.Post(srv.URL+"/api/rooms/"+created.Code+"/join", "application/json", strings.NewReader(`{"name":"Bob"}`))
 	if err != nil {
 		t.Fatalf("join: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestHTTPCreateJoinConnect(t *testing.T) {
 		t.Fatal("join must Set-Cookie the seat token")
 	}
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/r/" + created.Code
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/" + created.Code
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -86,4 +86,57 @@ func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
 		}
 	}
 	return nil
+}
+
+func TestRoutesAndCookieScope(t *testing.T) {
+	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
+	srv := httptest.NewServer(NewServer(h, Options{}).Handler())
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	defer resp.Body.Close()
+	var created struct {
+		Code string `json:"code"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	if created.Code == "" {
+		t.Fatal("create must return a code")
+	}
+	ck := findCookie(resp.Cookies(), cookieName(created.Code))
+	if ck == nil {
+		t.Fatal("create must Set-Cookie")
+	}
+	// Кука обязана уходить и на /api/..., и на /ws/... — значит Path=/ (§7.4).
+	if ck.Path != "/" {
+		t.Fatalf("cookie Path = %q, want \"/\"", ck.Path)
+	}
+	if ck.SameSite != http.SameSiteLaxMode || ck.Secure {
+		t.Fatalf("default cookie must be Lax and non-Secure, got SameSite=%v Secure=%v", ck.SameSite, ck.Secure)
+	}
+}
+
+func TestCrossSiteCookieMode(t *testing.T) {
+	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
+	srv := httptest.NewServer(NewServer(h, Options{CrossSite: true}).Handler())
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	defer resp.Body.Close()
+	var created struct {
+		Code string `json:"code"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	ck := findCookie(resp.Cookies(), cookieName(created.Code))
+	if ck == nil {
+		t.Fatal("create must Set-Cookie")
+	}
+	if ck.SameSite != http.SameSiteNoneMode || !ck.Secure {
+		t.Fatalf("cross-site cookie must be None+Secure, got SameSite=%v Secure=%v", ck.SameSite, ck.Secure)
+	}
 }

@@ -109,7 +109,7 @@ func TestConnActionAcksAndUpdates(t *testing.T) {
 func TestConnectAfterSeatReleasedSendsError(t *testing.T) {
 	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
 	code, tok, room := h.CreateRoom(game.Config{Rules: engine.RuleSet{DeckSize: engine.Deck36}, Mode: engine.Middle}, "Host")
-	srv := httptest.NewServer(NewServer(h).Handler())
+	srv := httptest.NewServer(NewServer(h, Options{}).Handler())
 	defer srv.Close()
 
 	pid, ok := room.playerFor(tok)
@@ -120,7 +120,7 @@ func TestConnectAfterSeatReleasedSendsError(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/r/"+code,
+	c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/ws/"+code,
 		&websocket.DialOptions{HTTPHeader: http.Header{"Cookie": []string{cookieName(code) + "=" + string(tok)}}})
 	if err != nil {
 		t.Fatalf("dial: %v", err)

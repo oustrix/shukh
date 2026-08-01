@@ -18,7 +18,7 @@ func main() {
 	hub := server.NewHub(server.NewMemStore(), server.NewRealClock())
 	hub.StartSweeper()
 
-	handler := server.NewServer(hub).Handler()
+	handler := server.NewServer(hub, server.Options{}).Handler()
 	log.Printf("shukh-server listening on %s", *addr)
 	log.Fatal(http.ListenAndServe(*addr, handler))
 }
