@@ -13,6 +13,8 @@ vi.mock('../../store/game', async () => {
   const store = create<import('../../store/game').GameState>(() => ({
     snapshot: null,
     events: [],
+    conn: 'open',
+    lastError: null,
     play: (a: Action) => sent.push(a),
   }))
   return { ...actual, useGameStore: store }
