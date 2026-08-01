@@ -1,3 +1,6 @@
 .idea/
 .superpowers/
 /shukh-server
+
+# git worktrees (изолированные воркспейсы под исполнение планов)
+.worktrees/
