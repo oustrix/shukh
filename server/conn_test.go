@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/oustrix/shukh/engine"
 	"github.com/oustrix/shukh/game"
 )
 
@@ -102,5 +103,39 @@ func TestConnActionAcksAndUpdates(t *testing.T) {
 	}
 	if !sawAck || !sawVoteOpen {
 		t.Fatalf("expected ack (%v) and a voteOpened update (%v)", sawAck, sawVoteOpen)
+	}
+}
+
+func TestConnectAfterSeatReleasedSendsError(t *testing.T) {
+	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
+	code, tok, room := h.CreateRoom(game.Config{Rules: engine.RuleSet{DeckSize: engine.Deck36}, Mode: engine.Middle}, "Host")
+	srv := httptest.NewServer(NewServer(h).Handler())
+	defer srv.Close()
+
+	pid, ok := room.playerFor(tok)
+	if !ok {
+		t.Fatal("token must resolve")
+	}
+	room.session.Leave(pid) // grace истёк в лобби: место освобождено, токен ещё жив
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/r/"+code,
+		&websocket.DialOptions{HTTPHeader: http.Header{"Cookie": []string{cookieName(code) + "=" + string(tok)}}})
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer c.CloseNow()
+
+	_, data, err := c.Read(ctx)
+	if err != nil {
+		t.Fatalf("сокет закрылся молча — клиенту нечего показать: %v", err)
+	}
+	var msg ServerMsg
+	if err := json.Unmarshal(data, &msg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if msg.Type != "error" || msg.Code != "seatNotFound" {
+		t.Fatalf("got %+v, want error/seatNotFound", msg)
 	}
 }
