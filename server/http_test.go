@@ -79,6 +79,63 @@ func TestHTTPCreateJoinConnect(t *testing.T) {
 	}
 }
 
+// TestJoinErrorsAreJSON checks that join failures the client's rooms.ts cares about
+// (§10 error codes) come back as {"error":"<code>"} rather than a plain-text body,
+// so the SPA can show a precise reason instead of falling back to "unknown".
+func TestJoinErrorsAreJSON(t *testing.T) {
+	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
+	srv := httptest.NewServer(NewServer(h, Options{}).Handler())
+	defer srv.Close()
+
+	joinCode := func(code, name string) (int, string) {
+		resp, err := http.Post(srv.URL+"/api/rooms/"+code+"/join", "application/json",
+			strings.NewReader(`{"name":"`+name+`"}`))
+		if err != nil {
+			t.Fatalf("join: %v", err)
+		}
+		defer resp.Body.Close()
+		var body struct {
+			Error string `json:"error"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		return resp.StatusCode, body.Error
+	}
+
+	// unknown room → 404 roomNotFound
+	if st, code := joinCode("ZZZZ", "Anyone"); st != http.StatusNotFound || code != "roomNotFound" {
+		t.Fatalf("unknown room: %d/%q, want 404/roomNotFound", st, code)
+	}
+
+	resp, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	var created struct {
+		Code string `json:"code"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	resp.Body.Close()
+
+	// Fill the table to game.maxPlayers (8, see game/session.go: ErrFull "max 8, D-3").
+	// The host already holds seat 0, so 7 more joins fill it exactly.
+	for i := 0; i < 7; i++ {
+		if st, code := joinCode(created.Code, "P"); st != http.StatusOK {
+			t.Fatalf("filler join %d: %d/%q, want 200", i, st, code)
+		}
+	}
+
+	// table is now full (8/8) → the next join is rejected with 409 full
+	if st, code := joinCode(created.Code, "Overflow"); st != http.StatusConflict || code != "full" {
+		t.Fatalf("join over capacity: %d/%q, want 409/full", st, code)
+	}
+
+	// NB: a "duplicate name" case is not exercised here. Room.Join mints a fresh,
+	// random game.PlayerID per call (server/room.go newPlayerID) and Session.Join's
+	// ErrDuplicate keys off PlayerID, not the display name — so two HTTP joins with
+	// the same name never collide at this layer. ErrDuplicate is real (used e.g. on
+	// reconnect paths that reuse a PlayerID) but unreachable from this handler.
+}
+
 func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
 	for _, c := range cookies {
 		if c.Name == name {

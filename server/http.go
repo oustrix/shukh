@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
@@ -110,7 +111,7 @@ func (s *Server) createRoom(w http.ResponseWriter, req *http.Request) {
 	if body.Config != nil {
 		c, err := body.Config.toGame()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "badRequest"})
 			return
 		}
 		cfg = c
@@ -128,7 +129,7 @@ func (s *Server) joinRoom(w http.ResponseWriter, req *http.Request) {
 	code := req.PathValue("code")
 	room, ok := s.hub.Room(code)
 	if !ok {
-		http.Error(w, "room not found", http.StatusNotFound)
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "roomNotFound"})
 		return
 	}
 	var body struct {
@@ -140,7 +141,7 @@ func (s *Server) joinRoom(w http.ResponseWriter, req *http.Request) {
 	}
 	tok, err := room.Join(body.Name)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusConflict)
+		writeJSON(w, http.StatusConflict, map[string]string{"error": joinErrorCode(err)})
 		return
 	}
 	pid, _ := room.playerFor(tok)
@@ -181,7 +182,7 @@ func (s *Server) connect(w http.ResponseWriter, req *http.Request) {
 	code := req.PathValue("code")
 	room, ok := s.hub.Room(code)
 	if !ok {
-		http.Error(w, "room not found", http.StatusNotFound)
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "roomNotFound"})
 		return
 	}
 	ck, err := req.Cookie(cookieName(code))
@@ -200,6 +201,21 @@ func (s *Server) connect(w http.ResponseWriter, req *http.Request) {
 	}
 	defer c.CloseNow()
 	room.serveConn(req.Context(), c, pid)
+}
+
+// joinErrorCode maps a Room.Join failure to a protocol error code (§10). It only
+// distinguishes the two reasons Session.Join actually rejects a name (table full,
+// duplicate identity); anything else collapses to "unknown" rather than leaking an
+// internal error string to the client.
+func joinErrorCode(err error) string {
+	switch {
+	case errors.Is(err, game.ErrFull):
+		return "full"
+	case errors.Is(err, game.ErrDuplicate):
+		return "duplicate"
+	default:
+		return "unknown"
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
