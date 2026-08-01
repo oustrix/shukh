@@ -3,6 +3,8 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"slices"
 
 	"github.com/coder/websocket"
 
@@ -36,7 +38,45 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/rooms/{code}/join", s.joinRoom)
 	mux.HandleFunc("GET /api/rooms/{code}/me", s.me)
 	mux.HandleFunc("GET /ws/{code}", s.connect)
-	return mux
+	return s.cors(mux)
+}
+
+// cors applies the allowlist to browser requests. The origin is echoed rather than
+// "*": the reconnect cookie makes every request credentialed, and the wildcard is
+// illegal with credentials (§7.5).
+func (s *Server) cors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		origin := req.Header.Get("Origin")
+		if origin != "" && s.originAllowed(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Add("Vary", "Origin")
+		}
+		if req.Method == http.MethodOptions && req.Header.Get("Access-Control-Request-Method") != "" {
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Max-Age", "600")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, req)
+	})
+}
+
+func (s *Server) originAllowed(origin string) bool {
+	return slices.Contains(s.opts.Origins, origin)
+}
+
+// originPatterns converts the allowlist into host patterns for the WS Origin check.
+// Empty list → nil, and coder/websocket falls back to same-origin only.
+func (s *Server) originPatterns() []string {
+	out := make([]string, 0, len(s.opts.Origins))
+	for _, o := range s.opts.Origins {
+		if u, err := url.Parse(o); err == nil && u.Host != "" {
+			out = append(out, u.Host)
+		}
+	}
+	return out
 }
 
 // cookieName scopes one cookie per room so several rooms coexist in one browser.
@@ -154,10 +194,7 @@ func (s *Server) connect(w http.ResponseWriter, req *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "seatNotFound"})
 		return
 	}
-	// TODO(prod): InsecureSkipVerify disables the WebSocket Origin check (CSWSH risk).
-	// Before any real deployment, narrow to OriginPatterns for the allowed host(s) and
-	// set the reconnect cookie Secure (L2-6). Acceptable only for local dev / MVP.
-	c, err := websocket.Accept(w, req, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	c, err := websocket.Accept(w, req, &websocket.AcceptOptions{OriginPatterns: s.originPatterns()})
 	if err != nil {
 		return
 	}

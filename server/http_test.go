@@ -166,6 +166,44 @@ func TestProbeMe(t *testing.T) {
 	}
 }
 
+func TestCORSAllowlist(t *testing.T) {
+	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
+	srv := httptest.NewServer(NewServer(h, Options{Origins: []string{"http://localhost:5173"}}).Handler())
+	defer srv.Close()
+
+	// preflight от разрешённого origin
+	req, _ := http.NewRequest(http.MethodOptions, srv.URL+"/api/rooms", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("preflight: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("preflight status = %d, want 204", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
+		t.Fatalf("Allow-Origin = %q, want the echoed origin (\"*\" is illegal with credentials)", got)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Fatalf("Allow-Credentials = %q, want true", got)
+	}
+
+	// чужой origin не получает разрешения
+	req2, _ := http.NewRequest(http.MethodOptions, srv.URL+"/api/rooms", nil)
+	req2.Header.Set("Origin", "http://evil.example")
+	req2.Header.Set("Access-Control-Request-Method", "POST")
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatalf("preflight2: %v", err)
+	}
+	resp2.Body.Close()
+	if got := resp2.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("Allow-Origin for foreign origin = %q, want empty", got)
+	}
+}
+
 func TestCrossSiteCookieMode(t *testing.T) {
 	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
 	srv := httptest.NewServer(NewServer(h, Options{CrossSite: true}).Handler())
