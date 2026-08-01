@@ -5,6 +5,7 @@ import {
   isLegal,
   isCardPlayable,
   isShukhTakeable,
+  SUBJECTIVE_CODES,
   type SeatView,
   type Action,
 } from './types'
@@ -99,4 +100,31 @@ test('isShukhTakeable: true когда takeShukhCards на своё место �
   expect(isShukhTakeable(legal, 0)).toBe(true)
   expect(isShukhTakeable(legal, 1)).toBe(false)
   expect(isShukhTakeable([], 0)).toBe(false)
+})
+
+describe('расширенный union действий', () => {
+  it('различает адресные действия по цели', () => {
+    const a: Action = { type: 'askCount', target: 1 }
+    const b: Action = { type: 'askCount', target: 2 }
+    expect(actionsEqual(a, a)).toBe(true)
+    expect(actionsEqual(a, b)).toBe(false)
+  })
+
+  it('различает субъективный ШУХ по цели и коду', () => {
+    const a: Action = { type: 'claimSubjective', claimant: 0, target: 1, code: 6 }
+    const b: Action = { type: 'claimSubjective', claimant: 0, target: 1, code: 9 }
+    expect(actionsEqual(a, b)).toBe(false)
+  })
+
+  it('различает голоса за и против', () => {
+    const forShukh: Action = { type: 'vote', vote: 'forShukh' }
+    const against: Action = { type: 'vote', vote: 'againstShukh' }
+    expect(actionsEqual(forShukh, against)).toBe(false)
+    expect(isLegal([against], forShukh)).toBe(false)
+    expect(isLegal([forShukh, against], against)).toBe(true)
+  })
+
+  it('субъективные коды — ровно Ш-6/Ш-9/Ш-10 (R-8.4/R-8.7/R-8.8)', () => {
+    expect([...SUBJECTIVE_CODES]).toEqual([6, 9, 10])
+  })
 })

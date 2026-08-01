@@ -9,9 +9,9 @@ const DELAY = 800 // пауза перед авто-ходом бота
 const HAND1 = [c(12, '♥'), c(6, '♠'), c(14, '♣'), c(7, '♦')]
 
 const SEATS = [
-  { seat: 0, name: 'Аня', ready: true },
-  { seat: 1, name: 'Боря', ready: true },
-  { seat: 2, name: 'Вера', ready: true },
+  { seat: 0, name: 'Аня' },
+  { seat: 1, name: 'Боря' },
+  { seat: 2, name: 'Вера' },
 ]
 
 const opp = (bori: number, vera: number, veraShukh = 0) => [
@@ -19,17 +19,15 @@ const opp = (bori: number, vera: number, veraShukh = 0) => [
   { seat: 2, handCount: vera, shukhPending: veraShukh, live: true },
 ]
 
-function base(
-  over: Partial<SeatView>,
-  legal: GameSnapshot['legal'],
-  shukhVote: GameSnapshot['shukhVote'] = null,
-): GameSnapshot {
+function base(over: Partial<SeatView>, legal: GameSnapshot['legal']): GameSnapshot {
   return {
     roomCode: 'DEMO',
+    you: 0,
+    stage: 'playing',
+    host: 0,
     seats: SEATS,
     view: buildSeatView({ opponents: opp(5, 5), live: { 0: true, 1: true, 2: true }, ...over }),
     legal,
-    shukhVote,
   }
 }
 
@@ -231,7 +229,9 @@ export const demoScenario: Scenario = [
       [{ type: 'takeBottomAndPass' }, { type: 'claimShukh', target: 2, code: 11 }],
     ),
   },
-  // 10. Вы жмёте «ШУХ!» на Веру. Вера оспаривает (R-8.6) → голосование (resolved:false).
+  // 10. Вы жмёте «ШУХ!» на Веру. Вера оспаривает (R-8.6) → открыт разбор (голосование ещё
+  //     не закрыто). vote — публичная сводка (VoteView): виден только ФАКТ голосования
+  //     (Боря уже проголосовал), само содержание бюллетеня тайно до резолва (§8.4).
   {
     kind: 'await',
     expect: { type: 'claimShukh', target: 2, code: 11 },
@@ -243,19 +243,13 @@ export const demoScenario: Scenario = [
         discard: 8,
         turn: 0,
         opponents: opp(3, 1),
+        vote: { claimant: 0, target: 2, code: 11, voted: [1] }, // судит третий — Боря (R-8.9)
       },
       [],
-      {
-        claimant: 0,
-        target: 2,
-        code: 11,
-        votes: [{ seat: 1, up: true }], // судит третий за столом — Боря (R-8.9)
-        outcome: 'upheld',
-        resolved: false,
-      },
     ),
   },
-  // 11. Голосование завершено: большинство подтвердило ШУХ (W2-7). ShukhAssessed (auto).
+  // 11. Голосование завершено: большинство подтвердило ШУХ (W2-7). ShukhAssessed (auto);
+  //     разбор закрыт — vote в SeatView больше нет (сервер публикует исход событием, §8.3).
   {
     kind: 'auto',
     delayMs: DELAY,
@@ -269,14 +263,6 @@ export const demoScenario: Scenario = [
         opponents: opp(3, 1),
       },
       [],
-      {
-        claimant: 0,
-        target: 2,
-        code: 11,
-        votes: [{ seat: 1, up: true }],
-        outcome: 'upheld',
-        resolved: true,
-      },
     ),
   },
   // 12. Оплата (R-8.1): вы отдаёте 14♣ (I-2 — не последнюю, у вас 2), Боря отдаёт 9♣.

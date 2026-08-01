@@ -5,7 +5,10 @@ import { buildSeatView } from '../fixtures/seatView'
 function snap(hand: number): GameSnapshot {
   return {
     roomCode: 'T',
-    seats: [{ seat: 0, name: 'p', ready: true }],
+    you: 0,
+    stage: 'playing',
+    host: 0,
+    seats: [{ seat: 0, name: 'p' }],
     view: buildSeatView({ hand: Array.from({ length: hand }, () => ({ suit: '♦', rank: 9 })) }),
     legal: [],
   }
@@ -33,10 +36,11 @@ test('subscribe синхронно отдаёт начальный (auto) сна
   const t = createScriptedTransport(scenario, sync)
   const snaps: GameSnapshot[] = []
   const evs: GameEvent[] = []
-  t.subscribe(
-    (s) => snaps.push(s),
-    (e) => evs.push(e),
-  )
+  t.subscribe({
+    onSnapshot: (s) => snaps.push(s),
+    onEvent: (e) => evs.push(e),
+    onStatus: () => {},
+  })
   expect(evs).toEqual([{ type: 'gameStarted', turn: 0 }])
   expect(snaps[0].view?.hand.length).toBe(2)
   // остановились на await — авто-шаг после него ещё не проигран
@@ -47,10 +51,11 @@ test('ожидаемое действие продвигает таймлайн 
   const t = createScriptedTransport(scenario, sync)
   const snaps: GameSnapshot[] = []
   const evs: GameEvent[] = []
-  t.subscribe(
-    (s) => snaps.push(s),
-    (e) => evs.push(e),
-  )
+  t.subscribe({
+    onSnapshot: (s) => snaps.push(s),
+    onEvent: (e) => evs.push(e),
+    onStatus: () => {},
+  })
   t.send({ type: 'playCard', card: { suit: '♦', rank: 9 } })
   // await-шаг проигран (hand→1) + следующий auto (бой Бори) проигран синхронно
   expect(snaps.map((s) => s.view?.hand.length)).toEqual([2, 1, 1])
@@ -60,10 +65,11 @@ test('ожидаемое действие продвигает таймлайн 
 test('офф-скрипт действие игнорируется (таймлайн не двигается)', () => {
   const t = createScriptedTransport(scenario, sync)
   const snaps: GameSnapshot[] = []
-  t.subscribe(
-    (s) => snaps.push(s),
-    () => {},
-  )
+  t.subscribe({
+    onSnapshot: (s) => snaps.push(s),
+    onEvent: () => {},
+    onStatus: () => {},
+  })
   t.send({ type: 'takeBottomAndPass' }) // не то, что ждёт await
   expect(snaps.length).toBe(1) // ничего не продвинулось
 })

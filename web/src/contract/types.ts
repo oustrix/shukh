@@ -13,7 +13,14 @@ export interface Card {
 export type SeatID = number
 export type Phase = 'playing' | 'finished'
 export type EnforcementMode = 'guard' | 'middle' | 'culture'
-export type ShukhCode = 2 | 3 | 11 | 12
+
+// Коды ШУХов (§7 правил): объективные ловит движок, субъективные идут через голосование R-8.6.
+export type ShukhCode = 2 | 3 | 6 | 8 | 9 | 10 | 11 | 12
+
+// Ш-6 «завис» (R-8.4), Ш-9 «зря крикнул» (R-8.7), Ш-10 «небрежность» (R-8.8) —
+// единственные, что предъявляются вручную через claimSubjective.
+export const SUBJECTIVE_CODES = [6, 9, 10] as const satisfies readonly ShukhCode[]
+
 export interface RuleSet {
   deckSize: 36 | 52
   podkladkaSnizu: boolean
@@ -31,6 +38,15 @@ export interface OpponentView {
   shukhPending: number
   live: boolean
 }
+// Публичная сводка открытого разбора R-8.6 (зеркало engine.VoteView, §8.3 Слоя 2).
+// voted — ФАКТ голосования, без содержания: бюллетень тайный до резолва (§8.4).
+export interface VoteView {
+  claimant: SeatID
+  target: SeatID
+  code: ShukhCode
+  voted: SeatID[]
+}
+
 export interface SeatView {
   rules: RuleSet
   mode: EnforcementMode
@@ -45,31 +61,25 @@ export interface SeatView {
   talon: number
   live: Record<number, boolean>
   finish: SeatID[]
+  vote?: VoteView // открытый разбор R-8.6; отсутствует, когда разбора нет
 }
 
-// Метаданные комнаты (Слой 1) — имена/готовность НЕ входят в engine.SeatView.
+export type Stage = 'lobby' | 'playing' | 'finished'
+
+// Метаданные комнаты (Слой 1): game.SeatMeta это {Seat, Name} — «готовности» в Слое 1 нет.
 export interface SeatMeta {
   seat: SeatID
   name: string
-  ready: boolean
 }
 export interface GameSnapshot {
   roomCode: string
+  you: SeatID // своё место известно и в лобби, где view === null
+  stage: Stage
+  host: SeatID // чьи Старт/настройки (мигрирует, L2-3)
   seats: SeatMeta[]
   view: SeatView | null // null в лобби (партия ещё не началась)
   legal: Action[] // легальные ходы текущего игрока (зеркало LegalActions); [] когда не наш ход
-  shukhVote?: ShukhVote | null // активное голосование по ШУХу (R-8.6); скриптовано (W2-7)
-}
-
-// Голосование/оспаривание ШУХа (R-8.6). Это клиент/сервер-DTO Спеца 2, НЕ engine.SeatView:
-// голоса и исход присылает сервер; на моке — сценарий (кворум по-настоящему не считаем, W2-7).
-export interface ShukhVote {
-  claimant: SeatID // кто предъявил ШУХ
-  target: SeatID // на кого
-  code: ShukhCode
-  votes: { seat: SeatID; up: boolean }[] // голоса судящих (R-8.9); скриптованы
-  outcome: 'upheld' | 'overturned' // overturned → Ш-8 предъявившему
-  resolved: boolean // false — идёт голосование; true — показать исход
+  voteDeadline?: number // unix-мс, пока идёт разбор R-8.6
 }
 
 // зеркало engine/action.go — синхронизировать вручную
@@ -77,9 +87,15 @@ export type Action =
   | { type: 'playCard'; card: Card }
   | { type: 'takeBottomAndPass' }
   | { type: 'podkladkaWest' }
+  | { type: 'discardWest' }
   | { type: 'claimShukh'; target: SeatID; code: ShukhCode }
   | { type: 'giveShukhCard'; card: Card }
   | { type: 'takeShukhCards'; seat: SeatID }
+  | { type: 'declareOneCard'; seat: SeatID }
+  | { type: 'askCount'; target: SeatID }
+  | { type: 'askAboutWest'; target: SeatID }
+  | { type: 'claimSubjective'; claimant: SeatID; target: SeatID; code: ShukhCode }
+  | { type: 'vote'; vote: 'forShukh' | 'againstShukh' }
 
 // зеркало engine/event.go + state.go — синхронизировать вручную
 export type GameEvent =
@@ -96,6 +112,10 @@ export type GameEvent =
   | { type: 'actionReverted'; seat: SeatID }
   | { type: 'shukhPaid'; offender: SeatID; from: SeatID; card: Card }
   | { type: 'shukhCardsTaken'; seat: SeatID; cards: Card[] }
+  | { type: 'oneCardDeclared'; seat: SeatID }
+  | { type: 'westDiscarded'; seat: SeatID }
+  | { type: 'voteOpened'; claimant: SeatID; target: SeatID; code: ShukhCode }
+  | { type: 'voteResolved'; code: ShukhCode; overturned: boolean }
 
 // Хелперы уровня контракта (используются UI и транспортом).
 export function isYourTurn(view: SeatView): boolean {
@@ -118,8 +138,17 @@ function actionKey(a: Action): string {
       return `claimShukh:${a.target}:${a.code}`
     case 'takeShukhCards':
       return `takeShukhCards:${a.seat}`
+    case 'askCount':
+    case 'askAboutWest':
+      return `${a.type}:${a.target}`
+    case 'declareOneCard':
+      return `declareOneCard:${a.seat}`
+    case 'claimSubjective':
+      return `claimSubjective:${a.target}:${a.code}`
+    case 'vote':
+      return `vote:${a.vote}`
     default:
-      return a.type // takeBottomAndPass | podkladkaWest
+      return a.type // takeBottomAndPass | podkladkaWest | discardWest
   }
 }
 

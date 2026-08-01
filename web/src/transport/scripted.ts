@@ -1,4 +1,4 @@
-import type { Transport } from '../contract/transport'
+import type { Transport, TransportHandlers } from '../contract/transport'
 import type { Action, GameEvent, GameSnapshot } from '../contract/types'
 import { actionsEqual } from '../contract/types'
 
@@ -56,9 +56,10 @@ export function createScriptedTransport(
   }
 
   return {
-    subscribe(snap, ev) {
-      onSnapshot = snap
-      onEvent = ev
+    subscribe(handlers: TransportHandlers) {
+      onSnapshot = handlers.onSnapshot
+      onEvent = handlers.onEvent
+      // Скрипт не моделирует обрывы связи — статус соединения не эмитится (ws.ts, Task 10).
       // стартовое состояние — синхронно
       const first = scenario[index]
       if (first && first.kind === 'auto') {
@@ -82,6 +83,11 @@ export function createScriptedTransport(
       index += 1
       emit(step)
       scheduleAutos()
+    },
+    close() {
+      onSnapshot = null
+      onEvent = null
+      if (typeof cancelPending === 'function') cancelPending()
     },
   }
 }

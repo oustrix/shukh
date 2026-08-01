@@ -1,12 +1,15 @@
 import type { GameSnapshot } from '../contract/types'
 
-// Один снапшот на итерацию: seats (имена/готовность) для Лобби + view для Стола.
+// Один снапшот на итерацию: seats (имена) для Лобби + view для Стола.
 export const gameSnapshot: GameSnapshot = {
   roomCode: 'DEMO',
+  you: 0,
+  stage: 'playing',
+  host: 0,
   seats: [
-    { seat: 0, name: 'Аня', ready: true },
-    { seat: 1, name: 'Боря', ready: true },
-    { seat: 2, name: 'Вера', ready: true },
+    { seat: 0, name: 'Аня' },
+    { seat: 1, name: 'Боря' },
+    { seat: 2, name: 'Вера' },
   ],
   view: {
     rules: { deckSize: 36, podkladkaSnizu: false, jokers: false },
@@ -39,5 +42,4 @@ export const gameSnapshot: GameSnapshot = {
     { type: 'playCard', card: { suit: '♥', rank: 12 } }, // Дама♥ бьёт что угодно (R-3.7)
     { type: 'takeBottomAndPass' },
   ],
-  shukhVote: null,
 }

@@ -13,9 +13,7 @@ export function Lobby() {
       <h2>Комната {code}</h2>
       <ul data-testid="players" className={styles.players}>
         {seats.map((s) => (
-          <li key={s.seat}>
-            {s.name} {s.ready ? '✓' : '…'}
-          </li>
+          <li key={s.seat}>{s.name}</li>
         ))}
       </ul>
       <Button onClick={() => navigate(tablePath(code ?? ''))}>Начать</Button>

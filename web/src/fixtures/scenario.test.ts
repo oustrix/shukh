@@ -10,10 +10,11 @@ const sync: Scheduler = (fn) => fn()
 function runToEnd(): GameSnapshot[] {
   const snaps: GameSnapshot[] = []
   const t = createScriptedTransport(demoScenario, sync)
-  t.subscribe(
-    (s) => snaps.push(s),
-    () => {},
-  )
+  t.subscribe({
+    onSnapshot: (s) => snaps.push(s),
+    onEvent: () => {},
+    onStatus: () => {},
+  })
   // синхронно докручиваем await-шаги их ожидаемыми действиями
   for (const step of demoScenario) {
     if (step.kind === 'await') t.send(step.expect)
@@ -28,13 +29,13 @@ test('в ходе сценария открывается ШУХ-окно (claim
   expect(claimShukhInLegal(withClaim[0].legal)).toMatchObject({ target: 2, code: 11 })
 })
 
-test('после предъявления ШУХа поднимается голосование, затем исход', () => {
+test('после предъявления ШУХа открывается разбор (SeatView.vote), затем закрывается', () => {
   const snaps = runToEnd()
-  const voting = snaps.filter((s) => s.shukhVote && !s.shukhVote.resolved)
-  const resolved = snaps.filter((s) => s.shukhVote?.resolved)
-  expect(voting.length).toBeGreaterThan(0)
-  expect(resolved.length).toBeGreaterThan(0)
-  expect(resolved[0].shukhVote?.outcome).toBe('upheld')
+  const voteIdx = snaps.findIndex((s) => s.view?.vote != null)
+  expect(voteIdx).toBeGreaterThanOrEqual(0)
+  expect(snaps[voteIdx].view?.vote).toMatchObject({ claimant: 0, target: 2, code: 11 })
+  const closedAfter = snaps.slice(voteIdx + 1).some((s) => s.view?.vote == null)
+  expect(closedAfter).toBe(true) // разбор закрылся (voteResolved, §8.3)
 })
 
 test('оплата ШУХа: нарушитель (Вера, seat 2) получает 2 отложенные карты; ваша рука убыла до 1', () => {
@@ -43,5 +44,5 @@ test('оплата ШУХа: нарушитель (Вера, seat 2) получ�
   const vera = last.view?.opponents.find((o) => o.seat === 2)
   expect(vera?.shukhPending).toBe(2)
   expect(last.view?.hand.length).toBe(1)
-  expect(last.shukhVote ?? null).toBeNull() // модалка закрыта после оплаты
+  expect(last.view?.vote ?? null).toBeNull() // разбор закрыт после оплаты
 })

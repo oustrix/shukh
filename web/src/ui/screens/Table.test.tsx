@@ -23,17 +23,19 @@ import { Table } from './Table'
 import { buildSeatView } from '../../fixtures/seatView'
 
 const SEATS = [
-  { seat: 0, name: 'Аня', ready: true },
-  { seat: 1, name: 'Боря', ready: true },
+  { seat: 0, name: 'Аня' },
+  { seat: 1, name: 'Боря' },
 ]
 
 function setSnapshot(over: Partial<GameSnapshot>) {
   snapshot = {
     roomCode: 'DEMO',
+    you: 0,
+    stage: 'playing',
+    host: 0,
     seats: SEATS,
     view: buildSeatView({ opponents: [{ seat: 1, handCount: 3, shukhPending: 0, live: true }] }),
     legal: [],
-    shukhVote: null,
     ...over,
   }
   ;(useGameStore as unknown as { setState: (s: Partial<unknown>) => void }).setState({ snapshot })

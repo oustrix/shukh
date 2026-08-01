@@ -17,7 +17,6 @@ export const EVENTS_CAP = 100
 export const selectSeats = (s: GameState) => s.snapshot?.seats ?? []
 export const selectView = (s: GameState) => s.snapshot?.view ?? null
 export const selectLegal = (s: GameState) => s.snapshot?.legal ?? []
-export const selectShukhVote = (s: GameState) => s.snapshot?.shukhVote ?? null
 
 // Создаёт изолированный стор поверх переданного транспорта. Подписка — ПОСЛЕ
 // создания стора: транспорт пушит в уже готовый setState.
@@ -27,10 +26,13 @@ export function createGameStore(transport: Transport) {
     events: [],
     play: (action) => transport.send(action),
   }))
-  transport.subscribe(
-    (snapshot) => store.setState({ snapshot }),
-    (event) => store.setState((s) => ({ events: [...s.events, event].slice(-EVENTS_CAP) })),
-  )
+  transport.subscribe({
+    onSnapshot: (snapshot) => store.setState({ snapshot }),
+    onEvent: (event) =>
+      store.setState((s) => ({ events: [...s.events, event].slice(-EVENTS_CAP) })),
+    // Стор пока не отслеживает статус соединения — тянется в Task 10/11 (ws.ts, реконнект).
+    onStatus: () => {},
+  })
   return store
 }
 

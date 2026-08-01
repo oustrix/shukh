@@ -10,12 +10,13 @@ function fakeTransport() {
   let onEv: ((e: GameEvent) => void) | undefined
   const send = vi.fn()
   const transport: Transport = {
-    subscribe(s, e) {
-      onSnap = s
-      onEv = e
+    subscribe(handlers) {
+      onSnap = handlers.onSnapshot
+      onEv = handlers.onEvent
       return () => {}
     },
     send,
+    close() {},
   }
   return {
     transport,

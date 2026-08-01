@@ -9,13 +9,14 @@ export function createMockTransport(snapshot: GameSnapshot): Transport & { sent:
   const sent: Action[] = []
   return {
     sent,
-    subscribe(onSnapshot) {
-      onSnapshot(snapshot)
+    subscribe(handlers) {
+      handlers.onSnapshot(snapshot)
       return () => {}
     },
     send(action) {
       sent.push(action)
       console.debug('[mock] send', action)
     },
+    close() {},
   }
 }
