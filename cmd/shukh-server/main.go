@@ -18,15 +18,24 @@ func main() {
 	crossSite := flag.Bool("cross-site", false, "issue the reconnect cookie as SameSite=None; Secure (needed only when the SPA is on a different site; requires TLS)")
 	flag.Parse()
 
-	var allowed []string
-	if *origins != "" {
-		allowed = strings.Split(*origins, ",")
-	}
-
 	hub := server.NewHub(server.NewMemStore(), server.NewRealClock())
 	hub.StartSweeper()
 
-	handler := server.NewServer(hub, server.Options{Origins: allowed, CrossSite: *crossSite}).Handler()
+	handler := server.NewServer(hub, server.Options{Origins: parseOrigins(*origins), CrossSite: *crossSite}).Handler()
 	log.Printf("shukh-server listening on %s", *addr)
 	log.Fatal(http.ListenAndServe(*addr, handler))
+}
+
+// parseOrigins splits the -origins flag on commas, trimming surrounding spaces and
+// dropping empty items: "a, b" is the natural way to type a list, and an untrimmed
+// " b" would never match a browser Origin header — the allowlist would silently
+// stop working for every entry but the first.
+func parseOrigins(flagValue string) []string {
+	var out []string
+	for _, o := range strings.Split(flagValue, ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			out = append(out, o)
+		}
+	}
+	return out
 }

@@ -259,6 +259,14 @@ func TestCORSAllowlist(t *testing.T) {
 	if got := resp2.Header.Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("Allow-Origin for foreign origin = %q, want empty", got)
 	}
+	// Vary: Origin обязан стоять и на отказе: ответ зависит от Origin в обе стороны,
+	// и общий кеш иначе переиспользует «без Allow-Origin» для разрешённого origin.
+	if got := resp2.Header.Get("Vary"); !strings.Contains(got, "Origin") {
+		t.Fatalf("Vary for foreign origin = %q, want it to contain Origin", got)
+	}
+	if got := resp.Header.Get("Vary"); !strings.Contains(got, "Origin") {
+		t.Fatalf("Vary for allowed origin = %q, want it to contain Origin", got)
+	}
 }
 
 func TestCrossSiteCookieMode(t *testing.T) {

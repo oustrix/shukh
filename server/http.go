@@ -48,10 +48,15 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		origin := req.Header.Get("Origin")
+		if origin != "" {
+			// Vary — на любой запрос с Origin, а не только на разрешённый: ответ
+			// зависит от Origin и когда заголовки НЕ выданы, и общий кеш иначе
+			// отдал бы отказ разрешённому origin (и наоборот).
+			w.Header().Add("Vary", "Origin")
+		}
 		if origin != "" && s.originAllowed(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Add("Vary", "Origin")
 		}
 		if req.Method == http.MethodOptions && req.Header.Get("Access-Control-Request-Method") != "" {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
