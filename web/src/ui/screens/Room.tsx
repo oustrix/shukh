@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiError, joinRoom, me } from '../../net/rooms'
 import { STORED_NAME_KEY } from '../../routes'
@@ -23,8 +23,26 @@ export function Room() {
   const [probe, setProbe] = useState<Probe>('checking')
   const [name, setName] = useState(() => localStorage.getItem(STORED_NAME_KEY) ?? '')
   const [joinError, setJoinError] = useState<string | null>(null)
+  // Запрос в полёте держим в ref, а не в state: два клика в один тик увидели бы
+  // одно и то же (устаревшее) значение state, а disabled на кнопке применится лишь
+  // после ре-рендера. Ref срабатывает сразу — это и есть настоящая защёлка.
+  const inFlight = useRef(false)
+  const [busy, setBusy] = useState(false)
+  const startRequest = () => {
+    if (inFlight.current) return false
+    inFlight.current = true
+    setBusy(true)
+    return true
+  }
+  const endRequest = () => {
+    inFlight.current = false
+    setBusy(false)
+  }
 
   const check = useCallback(async () => {
+    if (inFlight.current) return
+    inFlight.current = true
+    setBusy(true)
     setProbe('checking')
     try {
       const res = await me(code)
@@ -33,6 +51,9 @@ export function Room() {
       // fetch сам упал (оффлайн/DNS/сервер не поднят) — это не «комната не найдена»,
       // сервер вообще не ответил. Даём выход вместо вечной «Проверяем место…».
       setProbe('networkError')
+    } finally {
+      inFlight.current = false
+      setBusy(false)
     }
   }, [code])
 
@@ -46,7 +67,9 @@ export function Room() {
       <div className={styles.centered}>
         <h2>Не удалось проверить место</h2>
         <p>Сервер не ответил — проверьте соединение и попробуйте ещё раз.</p>
-        <Button onClick={() => void check()}>Повторить</Button>
+        <Button onClick={() => void check()} disabled={busy}>
+          Повторить
+        </Button>
       </div>
     )
   }
@@ -64,16 +87,22 @@ export function Room() {
         className={styles.centered}
         onSubmit={(e) => {
           e.preventDefault()
+          // Room.Join на сервере минтит НОВЫЙ PlayerID на каждый вызов: второй
+          // параллельный запрос занял бы второе место и перезаписал куку, а первое
+          // осталось бы за призраком — выселить его в MVP нечем (ни кика, ни тайм-аута
+          // хода). В комнате на двоих это сразу неиграбельный стол.
+          if (!startRequest()) return
           setJoinError(null)
           localStorage.setItem(STORED_NAME_KEY, name.trim())
           void joinRoom(code, name.trim())
             .then(() => setProbe('seated'))
             .catch((err) => setJoinError(joinErrorText[err instanceof ApiError ? err.code : 'unknown']))
+            .finally(endRequest)
         }}
       >
         <h2>Комната {code}</h2>
         <input aria-label="Имя" placeholder="Имя" value={name} onChange={(e) => setName(e.target.value)} />
-        <Button type="submit" disabled={name.trim() === ''}>
+        <Button type="submit" disabled={busy || name.trim() === ''}>
           Занять место
         </Button>
         {joinError && <p role="alert">{joinError}</p>}

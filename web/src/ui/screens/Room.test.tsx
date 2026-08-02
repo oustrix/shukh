@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { Room } from './Room'
 import { ROOM_ROUTE } from '../../routes'
-import { ApiError, joinRoom, me } from '../../net/rooms'
+import { ApiError, joinRoom, me, type MeResult } from '../../net/rooms'
 import type { GameState } from '../../store/game'
 import { buildSeatView } from '../../fixtures/seatView'
 
@@ -80,6 +80,35 @@ describe('экран комнаты — проба места', () => {
     await userEvent.type(await screen.findByLabelText('Имя'), 'Боря')
     await userEvent.click(screen.getByRole('button', { name: /Занять место/i }))
     expect(await screen.findByText(/Комната заполнена/i)).toBeInTheDocument()
+  })
+
+  it('двойной клик «Занять место» не шлёт join дважды (второе место сгорело бы навсегда)', async () => {
+    // Room.Join на сервере минтит НОВЫЙ PlayerID на каждый вызов: второй клик занял бы
+    // второе место и перезаписал куку, а первое осталось бы за призраком, которого нечем
+    // выселить (ни кика, ни тайм-аута хода в MVP). В комнате на двоих это мёртвый стол.
+    vi.mocked(me).mockResolvedValue({ kind: 'seatNotFound' })
+    let settle: (v: { seat: number }) => void = () => {}
+    vi.mocked(joinRoom).mockReturnValue(new Promise((resolve) => (settle = resolve)))
+    renderAt('ABCD')
+    await userEvent.type(await screen.findByLabelText('Имя'), 'Боря')
+    const button = screen.getByRole('button', { name: /Занять место/i })
+    fireEvent.click(button) // два клика подряд, пока первый запрос ещё в полёте
+    fireEvent.click(button)
+    expect(joinRoom).toHaveBeenCalledTimes(1)
+    expect(button).toBeDisabled()
+    await act(async () => settle({ seat: 1 }))
+  })
+
+  it('двойной клик «Повторить» не шлёт пробу дважды', async () => {
+    vi.mocked(me).mockRejectedValueOnce(new Error('network down'))
+    let settle: (v: MeResult) => void = () => {}
+    vi.mocked(me).mockReturnValueOnce(new Promise((resolve) => (settle = resolve)))
+    renderAt('ABCD')
+    const retry = await screen.findByRole('button', { name: /Повторить/i })
+    fireEvent.click(retry)
+    fireEvent.click(retry)
+    expect(me).toHaveBeenCalledTimes(2) // первая — автоматическая при монтировании
+    await act(async () => settle({ kind: 'seatNotFound' }))
   })
 
   it('сбой сети при пробе → не бесконечная загрузка, а сообщение и «Повторить»', async () => {
