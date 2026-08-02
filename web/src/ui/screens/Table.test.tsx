@@ -65,14 +65,23 @@ test('«ШУХ!» активна и шлёт конкретный claimShukh и�
   expect(sent).toContainEqual({ type: 'claimShukh', target: 1, code: 11 })
 })
 
-test('«Одна карта!» пульсирует при 1 карте на руке и гасится по клику', async () => {
+test('«Одна карта!» отключена, пока declareOneCard не пришёл в legal', () => {
   setSnapshot({
     view: buildSeatView({ hand: [{ suit: '♠', rank: 6 }], live: { 0: true } }),
     legal: [],
   })
   renderTable()
+  expect(screen.getByRole('button', { name: 'Одна карта!' })).toBeDisabled()
+})
+
+test('«Одна карта!» активна при declareOneCard в legal и шлёт именно его (§6, Ш-11)', async () => {
+  setSnapshot({
+    view: buildSeatView({ hand: [{ suit: '♠', rank: 6 }], live: { 0: true } }),
+    legal: [{ type: 'declareOneCard', seat: 0 }],
+  })
+  renderTable()
   const btn = screen.getByRole('button', { name: 'Одна карта!' })
   expect(btn).toBeEnabled()
   await userEvent.click(btn)
-  expect(btn).toBeDisabled() // announced → пульсация/доступность гаснут
+  expect(sent).toContainEqual({ type: 'declareOneCard', seat: 0 })
 })

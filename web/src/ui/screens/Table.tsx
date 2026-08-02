@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   cardKey,
   isCardPlayable,
@@ -12,7 +12,7 @@ import { Hand } from '../table/Hand'
 import { Con } from '../table/Con'
 import { OpponentSeat } from '../table/OpponentSeat'
 import { ShukhZone } from '../table/ShukhZone'
-import { ActionBar } from '../table/ActionBar'
+import { ActionBar, type BarAction } from '../table/ActionBar'
 import styles from '../table/Table.module.css'
 
 export function Table() {
@@ -21,11 +21,6 @@ export function Table() {
   const legal = useGame(selectLegal)
   const play = useGame((s) => s.play)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
-  const [announced, setAnnounced] = useState(false)
-  const handLen = view?.hand.length ?? 0
-  useEffect(() => {
-    if (handLen !== 1) setAnnounced(false)
-  }, [handLen])
 
   if (!view) return <div className={styles.con}>Загрузка стола…</div>
 
@@ -38,7 +33,6 @@ export function Table() {
   const canTakeBottom = isLegal(legal, { type: 'takeBottomAndPass' })
   const yourZoneTakeable = isShukhTakeable(legal, view.you)
   const claim = claimShukhInLegal(legal)
-  const owesOneCard = (view.live[view.you] ?? false) && view.hand.length === 1 && !announced
 
   const confirmPlay = () => {
     if (!canConfirm || !selectedCard) return
@@ -54,6 +48,35 @@ export function Table() {
     setSelectedKey(key)
   }
 
+  const declareOneCard = legal.find((a) => a.type === 'declareOneCard')
+  const barActions: BarAction[] = [
+    { label: 'Сходить', enabled: canConfirm, onClick: confirmPlay },
+    {
+      label: 'Взять низ',
+      enabled: canTakeBottom,
+      onClick: () => play({ type: 'takeBottomAndPass' }),
+    },
+    {
+      label: 'Западло',
+      enabled: isLegal(legal, { type: 'podkladkaWest' }),
+      onClick: () => play({ type: 'podkladkaWest' }),
+    },
+    {
+      // R-9.4.2.1: в эндшпиле §9.2 сброс 6(2)♥ — обязательный ход, без него стол встаёт.
+      label: 'Сбросить Запад',
+      enabled: isLegal(legal, { type: 'discardWest' }),
+      onClick: () => play({ type: 'discardWest' }),
+    },
+    { label: 'ШУХ!', enabled: claim != null, onClick: () => claim && play(claim) },
+    {
+      // Настоящее объявление §6, а не клиент-локальный флаг: теперь Ш-11 ловится по правилам.
+      label: 'Одна карта!',
+      enabled: declareOneCard != null,
+      onClick: () => declareOneCard && play(declareOneCard),
+      pulse: true,
+    },
+  ]
+
   return (
     <div className={styles.table}>
       <div className={styles.opponents}>
@@ -68,16 +91,7 @@ export function Table() {
         onTake={() => play({ type: 'takeShukhCards', seat: view.you })}
         label={`Ваша ШУХ-зона: ${view.shukhPending}`}
       />
-      <ActionBar
-        canConfirm={canConfirm}
-        onConfirm={confirmPlay}
-        canTakeBottom={canTakeBottom}
-        onTakeBottom={() => play({ type: 'takeBottomAndPass' })}
-        canShukh={claim != null}
-        onShukh={() => claim && play(claim)}
-        owesOneCard={owesOneCard}
-        onOneCard={() => setAnnounced(true)}
-      />
+      <ActionBar actions={barActions} />
       <Hand
         cards={view.hand}
         selectedKey={selectedKey}
