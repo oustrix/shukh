@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import type { Action, GameSnapshot } from '../../contract/types'
 import type { GameState } from '../../store/game'
 import { GameContext } from '../../store/GameProvider'
+import { NoticeArea } from '../kit/Notice'
 import { Table } from './Table'
 import { buildSeatView } from '../../fixtures/seatView'
 
@@ -22,9 +23,13 @@ const store = create<GameState>(() => ({
 }))
 
 function renderTable() {
+  // NoticeArea — как в настоящем дереве (её даёт RoomBody): без неё уведомления
+  // об отброшенных при обрыве действиях некому показать.
   return render(
     <GameContext.Provider value={store}>
-      <Table />
+      <NoticeArea>
+        <Table />
+      </NoticeArea>
     </GameContext.Provider>,
   )
 }
@@ -50,6 +55,7 @@ function setSnapshot(over: Partial<GameSnapshot>) {
 
 beforeEach(() => {
   sent.length = 0
+  store.setState({ conn: 'open' })
 })
 
 test('«ШУХ!» активна и шлёт конкретный claimShukh из legal', async () => {
@@ -182,5 +188,56 @@ describe('оплата ШУХа — открытый гейт §8 (giveShukhCard
       .getByTestId('action-bar')
       .querySelectorAll('button')
       .forEach((b) => expect(b).toBeDisabled())
+  })
+})
+
+describe('обрыв связи блокирует действия (§8, W3-5)', () => {
+  const CARD = { suit: '♠' as const, rank: 6 }
+
+  function setPlayable() {
+    setSnapshot({
+      view: buildSeatView({ hand: [CARD, { suit: '♥', rank: 12 }] }),
+      legal: [{ type: 'playCard', card: CARD }, { type: 'podkladkaWest' }],
+    })
+  }
+
+  test('в reconnecting все действия выключены, а состояние честно подписано', () => {
+    setPlayable()
+    act(() => store.setState({ conn: 'reconnecting' }))
+    renderTable()
+    expect(screen.getByTestId('table-status')).toHaveTextContent(/связь/i)
+    screen
+      .getByTestId('action-bar')
+      .querySelectorAll('button')
+      .forEach((b) => expect(b).toBeDisabled())
+    // Карта легальна по последнему снапшоту, но брать её сейчас нельзя.
+    expect(screen.queryByRole('button', { name: '6♠' })).toBeNull()
+  })
+
+  test('отправка при обрыве отбрасывается С УВЕДОМЛЕНИЕМ, а не молча', async () => {
+    // claimSubjective — единственная кнопка, не гейтящаяся legal (движок не кладёт
+    // её в legal), поэтому именно через неё отправка при обрыве и достижима.
+    setSnapshot({
+      view: buildSeatView({ opponents: [{ seat: 1, handCount: 3, shukhPending: 0, live: true }] }),
+      legal: [],
+    })
+    act(() => store.setState({ conn: 'reconnecting' }))
+    renderTable()
+    await userEvent.click(screen.getByRole('button', { name: 'Боря' }))
+    await userEvent.click(screen.getByRole('button', { name: /завис/i }))
+    expect(sent).toHaveLength(0)
+    expect(screen.getByTestId('notice')).toHaveTextContent(/связ/i)
+  })
+
+  test('выбор карты переживает обрыв — его не сбрасывает отброшенное подтверждение', async () => {
+    setPlayable()
+    renderTable()
+    await userEvent.click(screen.getByRole('button', { name: '6♠' }))
+    expect(screen.getByRole('button', { name: 'Сходить' })).toBeEnabled()
+    act(() => store.setState({ conn: 'reconnecting' }))
+    expect(screen.getByRole('button', { name: 'Сходить' })).toBeDisabled()
+    act(() => store.setState({ conn: 'open' }))
+    // Выделение на месте: после переподключения ходить можно сразу, ничего не пропало.
+    expect(screen.getByRole('button', { name: 'Сходить' })).toBeEnabled()
   })
 })

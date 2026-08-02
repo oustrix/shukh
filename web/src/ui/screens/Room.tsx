@@ -5,6 +5,7 @@ import { STORED_NAME_KEY } from '../../routes'
 import { GameProvider, useGame } from '../../store/GameProvider'
 import { selectConn, selectLastError, selectSeats, selectStage, selectView } from '../../store/game'
 import { Button } from '../kit/Button'
+import { NoticeArea, useNotify } from '../kit/Notice'
 import { Lobby } from './Lobby'
 import { Table } from './Table'
 import styles from './Screens.module.css'
@@ -16,6 +17,39 @@ const joinErrorText: Record<string, string> = {
   duplicate: 'Такое имя уже занято',
   roomNotFound: 'Комната не найдена',
   unknown: 'Не удалось занять место',
+}
+
+// Отказы сервера по сокету (§9). Сырые коды игроку не показываем — фразы по смыслу
+// правил, а не буквальный перевод кода. Больнее всего это бьёт по субъективным ШУХам:
+// движок сознательно не кладёт claimSubjective в legal, законность проверяется на
+// сабмите, и ошибка сервера — ЕДИНСТВЕННЫЙ канал обратной связи. Без неё нажатие
+// «ШУХ: завис» неотличимо от проглоченного клика.
+const serverErrorText: Record<string, string> = {
+  illegalAction: 'Так сейчас нельзя — стол не принял это по правилам',
+  notYours: 'Сейчас не ваш ход',
+  notPlaying: 'Партия ещё не идёт',
+  notHost: 'Настройки и старт партии — у хоста',
+  notLobby: 'Партия уже началась — в лобби не вернуться',
+  tooFewPlayers: 'Для партии нужно хотя бы два игрока',
+}
+
+// Уведомляет об отказах сервера. Ничего не рисует сам: единственная поверхность
+// уведомлений — NoticeArea, чтобы два источника не накладывались друг на друга.
+function ServerErrorNotice() {
+  const lastError = useGame(selectLastError)
+  const notify = useNotify()
+  // Реагируем на ПОЯВЛЕНИЕ ошибки, а не на её наличие: lastError живёт в сторе до
+  // следующей смены статуса, и по «наличию» уведомление всплывало бы на каждый
+  // ре-рендер. Кодек создаёт новый объект на каждый кадр error — сравнения по
+  // ссылке достаточно, и повтор того же кода честно считается новой ошибкой.
+  const seen = useRef(lastError)
+  useEffect(() => {
+    if (lastError === seen.current) return
+    seen.current = lastError
+    if (!lastError) return
+    notify(serverErrorText[lastError.code] ?? 'Сервер отклонил действие')
+  }, [lastError, notify])
+  return null
 }
 
 export function Room() {
@@ -133,7 +167,8 @@ function RoomBody() {
     )
   }
   return (
-    <>
+    <NoticeArea>
+      <ServerErrorNotice />
       {conn !== 'open' && (
         <div className={styles.connBanner} role="status">
           {conn === 'connecting' ? 'Подключение…' : 'Связь потеряна, переподключаемся…'}
@@ -143,7 +178,7 @@ function RoomBody() {
       {stage === 'lobby' && <Lobby />}
       {(stage === 'playing' || stage === 'finished') && <Table />}
       {stage === 'finished' && <FinishBanner />}
-    </>
+    </NoticeArea>
   )
 }
 

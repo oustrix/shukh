@@ -7,8 +7,18 @@ import {
   isShukhTakeable,
   claimShukhInLegal,
 } from '../../contract/types'
+import type { Action } from '../../contract/types'
 import { useGame } from '../../store/GameProvider'
-import { selectSeats, selectView, selectLegal, selectVote, selectVoteDeadline, selectEvents } from '../../store/game'
+import {
+  selectSeats,
+  selectView,
+  selectLegal,
+  selectVote,
+  selectVoteDeadline,
+  selectEvents,
+  selectConn,
+} from '../../store/game'
+import { useNotify } from '../kit/Notice'
 import { Hand } from '../table/Hand'
 import { Con } from '../table/Con'
 import { OpponentSeat } from '../table/OpponentSeat'
@@ -26,7 +36,9 @@ export function Table() {
   const vote = useGame(selectVote)
   const voteDeadline = useGame(selectVoteDeadline)
   const events = useGame(selectEvents)
+  const conn = useGame(selectConn)
   const play = useGame((s) => s.play)
+  const notify = useNotify()
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [menuSeat, setMenuSeat] = useState<number | null>(null)
 
@@ -34,6 +46,22 @@ export function Table() {
 
   const nameBySeat = new Map(seats.map((s) => [s.seat, s.name]))
   const nameOf = (seat: number) => nameBySeat.get(seat) ?? `Игрок ${seat}`
+
+  // В reconnecting стол виден по последнему снапшоту, но действия заблокированы (§8):
+  // за время обрыва позиция ушла вперёд, и отложенная доставка запрещена (W3-5).
+  const online = conn === 'open'
+  // Единственная точка отправки. Транспорт и так молча отбросил бы действие в обрыве —
+  // именно молча, что неотличимо от проглоченного клика; здесь оно отбрасывается
+  // ВИДИМО. Возвращаемое значение говорит вызывающему, дошло ли действие: подтверждение
+  // хода не имеет права сбрасывать выбор карты, если ход никуда не уехал.
+  const send = (action: Action): boolean => {
+    if (!online) {
+      notify('Связь потеряна — действие не отправлено. Повторите после переподключения')
+      return false
+    }
+    play(action)
+    return true
+  }
 
   // Оплата ШУХа (§8). При открытом гейте движок (engine/legal.go, ветка s.Pending != nil)
   // кладёт платящему ТОЛЬКО GiveShukhCard — по одному на каждую отдаваемую карту; всем
@@ -46,22 +74,32 @@ export function Table() {
 
   const playableKeys = new Set(view.hand.filter((c) => isCardPlayable(legal, c)).map(cardKey))
   // Один и тот же механизм выбора в руке обслуживает и ход, и оплату — параллельного нет.
-  const selectableKeys = paying ? giveKeys : playableKeys
+  const legalKeys = paying ? giveKeys : playableKeys
+  // При обрыве рука неинтерактивна, но УЖЕ выбранная карта остаётся выделенной: выбор —
+  // это намерение игрока, и терять его из-за мигнувшей связи незачем. Поэтому «что
+  // законно» (legalKeys, из legal) и «что можно трогать сейчас» (handKeys) — разное.
+  const handKeys = online ? legalKeys : new Set<string>()
   const selectedCard = view.hand.find((c) => cardKey(c) === selectedKey) ?? null
-  const canConfirm = selectedKey != null && selectableKeys.has(selectedKey)
+  const canConfirm = selectedKey != null && legalKeys.has(selectedKey)
   const canTakeBottom = isLegal(legal, { type: 'takeBottomAndPass' })
   const yourZoneTakeable = isShukhTakeable(legal, view.you)
   const claim = claimShukhInLegal(legal)
 
   const confirmPlay = () => {
     if (!canConfirm || !selectedCard) return
-    play(paying ? { type: 'giveShukhCard', card: selectedCard } : { type: 'playCard', card: selectedCard })
-    setSelectedKey(null)
+    // Сброс выбора — только если ход реально уехал: отброшенная при обрыве отправка
+    // раньше успевала стереть выделение, и игрок видел лишь исчезнувшую подсветку.
+    const sent = send(
+      paying ? { type: 'giveShukhCard', card: selectedCard } : { type: 'playCard', card: selectedCard },
+    )
+    if (sent) setSelectedKey(null)
   }
 
   // Подпись состояния: игрок обязан понимать, чего от него ждут — и, что не менее
   // важно, когда от него не ждут ничего. Всё выводится из снапшота, правил не считаем.
-  const statusText = paying
+  const statusText = !online
+    ? 'Связь потеряна — действия недоступны, ждём переподключения'
+    : paying
     ? 'Оплатите ШУХ: отдайте карту'
     : vote
       ? 'Идёт разбор ШУХа (R-8.6)'
@@ -81,29 +119,29 @@ export function Table() {
 
   const declareOneCard = legal.find((a) => a.type === 'declareOneCard')
   const barActions: BarAction[] = [
-    { label: paying ? 'Отдать карту' : 'Сходить', enabled: canConfirm, onClick: confirmPlay },
+    { label: paying ? 'Отдать карту' : 'Сходить', enabled: online && canConfirm, onClick: confirmPlay },
     {
       label: 'Взять низ',
-      enabled: canTakeBottom,
-      onClick: () => play({ type: 'takeBottomAndPass' }),
+      enabled: online && canTakeBottom,
+      onClick: () => send({ type: 'takeBottomAndPass' }),
     },
     {
       label: 'Западло',
-      enabled: isLegal(legal, { type: 'podkladkaWest' }),
-      onClick: () => play({ type: 'podkladkaWest' }),
+      enabled: online && isLegal(legal, { type: 'podkladkaWest' }),
+      onClick: () => send({ type: 'podkladkaWest' }),
     },
     {
       // R-9.4.2.1: в эндшпиле §9.2 сброс 6(2)♥ — обязательный ход, без него стол встаёт.
       label: 'Сбросить Запад',
-      enabled: isLegal(legal, { type: 'discardWest' }),
-      onClick: () => play({ type: 'discardWest' }),
+      enabled: online && isLegal(legal, { type: 'discardWest' }),
+      onClick: () => send({ type: 'discardWest' }),
     },
-    { label: 'ШУХ!', enabled: claim != null, onClick: () => claim && play(claim) },
+    { label: 'ШУХ!', enabled: online && claim != null, onClick: () => claim && send(claim) },
     {
       // Настоящее объявление §6, а не клиент-локальный флаг: теперь Ш-11 ловится по правилам.
       label: 'Одна карта!',
-      enabled: declareOneCard != null,
-      onClick: () => declareOneCard && play(declareOneCard),
+      enabled: online && declareOneCard != null,
+      onClick: () => declareOneCard && send(declareOneCard),
       pulse: true,
     },
   ]
@@ -128,7 +166,7 @@ export function Table() {
               name={nameOf(o.seat)}
               you={view.you}
               legal={legal}
-              onAction={play}
+              onAction={send}
               onClose={() => setMenuSeat(null)}
             />
           </OpponentSeat>
@@ -137,8 +175,8 @@ export function Table() {
       <Con table={view.table} />
       <ShukhZone
         count={view.shukhPending}
-        takeable={yourZoneTakeable}
-        onTake={() => play({ type: 'takeShukhCards', seat: view.you })}
+        takeable={online && yourZoneTakeable}
+        onTake={() => send({ type: 'takeShukhCards', seat: view.you })}
         label={`Ваша ШУХ-зона: ${view.shukhPending}`}
       />
       <div className={styles.status} role="status" data-testid="table-status">
@@ -148,7 +186,7 @@ export function Table() {
       <Hand
         cards={view.hand}
         selectedKey={selectedKey}
-        playableKeys={selectableKeys}
+        playableKeys={handKeys}
         onSelect={onSelect}
       />
       {vote && (
@@ -157,7 +195,8 @@ export function Table() {
           deadline={voteDeadline}
           legal={legal}
           nameOf={nameOf}
-          onVote={(v) => play({ type: 'vote', vote: v })}
+          onVote={(v) => send({ type: 'vote', vote: v })}
+          disabled={!online}
         />
       )}
     </div>

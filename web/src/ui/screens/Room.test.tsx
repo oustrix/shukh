@@ -40,14 +40,21 @@ function setGameState(over: Partial<GameState>) {
   gameState = { snapshot: null, events: [], conn: 'open', lastError: null, play: () => {}, command: () => {}, ...over }
 }
 
-function renderAt(code: string) {
-  return render(
+function roomTree(code: string) {
+  return (
     <MemoryRouter initialEntries={[`/r/${code}`]}>
       <Routes>
         <Route path={ROOM_ROUTE} element={<Room />} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
+}
+
+function renderAt(code: string) {
+  const result = render(roomTree(code))
+  // Мок useGame читает модульный gameState, а не подписан на стор: чтобы новое
+  // состояние доехало до дерева, тесту нужен явный ре-рендер.
+  return { ...result, refresh: () => result.rerender(roomTree(code)) }
 }
 
 beforeEach(() => {
@@ -237,5 +244,50 @@ describe('экран комнаты — RoomBody: ветвление по stage/
     })
     renderAt('ABCD')
     expect(await screen.findByRole('status')).toHaveTextContent(/переподключаемся/i)
+  })
+})
+
+describe('ошибки сервера видны игроку (§9)', () => {
+  const LOBBY = {
+    roomCode: 'ABCD',
+    you: 0,
+    stage: 'lobby' as const,
+    host: 1,
+    seats: [{ seat: 0, name: 'Аня' }],
+    view: null,
+    legal: [],
+  }
+
+  beforeEach(() => {
+    vi.mocked(me).mockResolvedValue({ kind: 'seat', seat: 0 })
+  })
+
+  it.each([
+    ['illegalAction', /по правилам|нельзя/i],
+    ['notYours', /ваш ход/i],
+    ['notPlaying', /партия/i],
+    ['notHost', /хост/i],
+    ['notLobby', /партия/i],
+    ['tooFewPlayers', /игрок/i],
+  ])('код %s показывается человеческим текстом, а не сырым кодом', async (code, expected) => {
+    setGameState({ snapshot: LOBBY })
+    const { refresh } = renderAt('ABCD')
+    await screen.findByTestId('players')
+    setGameState({ snapshot: LOBBY, lastError: { code, message: 'raw' } })
+    refresh()
+    const notice = await screen.findByTestId('notice')
+    expect(notice).toHaveTextContent(expected)
+    expect(notice).not.toHaveTextContent(code)
+  })
+
+  it('субъективный ШУХ отклонён сервером — единственный канал обратной связи не молчит', async () => {
+    // Движок сознательно не кладёт claimSubjective в legal: законность проверяется на
+    // сабмите, и ошибка сервера — ЕДИНСТВЕННОЕ, что отличает отказ от проглоченного клика.
+    setGameState({ snapshot: LOBBY })
+    const { refresh } = renderAt('ABCD')
+    await screen.findByTestId('players')
+    setGameState({ snapshot: LOBBY, lastError: { code: 'illegalAction', message: 'raw' } })
+    refresh()
+    expect(await screen.findByTestId('notice')).toBeInTheDocument()
   })
 })

@@ -10,13 +10,16 @@ interface ShukhVoteModalProps {
   legal: Action[]
   nameOf: (seat: number) => string
   onVote: (v: 'forShukh' | 'againstShukh') => void
+  // Обрыв связи: голос заблокирован, как и прочие действия (§8). Кнопки остаются на
+  // месте (гасить их подписью «ждём остальных» значило бы соврать — мы ждём не их).
+  disabled?: boolean
 }
 
 // Разбор R-8.6. Открывается по view.vote (W3-6), поэтому переподключившийся сразу видит
 // идущее голосование. Показываем ФАКТ голоса, но не содержание — бюллетень тайный (§8.4).
 // Исход (voteResolved) сюда не приходит: сервер обнуляет view.vote тем же апдейтом, что несёт
 // это событие, — к моменту исхода модалка уже размонтирована. Исход — отдельный VoteOutcomeBanner.
-export function ShukhVoteModal({ vote, deadline, legal, nameOf, onVote }: ShukhVoteModalProps) {
+export function ShukhVoteModal({ vote, deadline, legal, nameOf, onVote, disabled }: ShukhVoteModalProps) {
   const [left, setLeft] = useState(() => remaining(deadline))
   useEffect(() => {
     if (deadline === null) return
@@ -51,8 +54,12 @@ export function ShukhVoteModal({ vote, deadline, legal, nameOf, onVote }: ShukhV
         </ul>
         {canVote ? (
           <div className={styles.voteButtons}>
-            <Button onClick={() => onVote('forShukh')}>За ШУХ</Button>
-            <Button onClick={() => onVote('againstShukh')}>Против ШУХа</Button>
+            <Button disabled={disabled} onClick={() => onVote('forShukh')}>
+              За ШУХ
+            </Button>
+            <Button disabled={disabled} onClick={() => onVote('againstShukh')}>
+              Против ШУХа
+            </Button>
           </div>
         ) : (
           <p className={styles.voteTallying}>
