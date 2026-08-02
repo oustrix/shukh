@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { isLegal } from '../../contract/types'
-import type { Action, SeatID, ShukhCode } from '../../contract/types'
+import { isLegal, SUBJECTIVE_CODES } from '../../contract/types'
+import type { Action, SeatID } from '../../contract/types'
 import { Button } from '../kit/Button'
 import styles from './Table.module.css'
 
@@ -15,11 +15,13 @@ interface SeatMenuProps {
 
 // Субъективные ШУХи (R-8.4/R-8.7/R-8.8) движок в legal НЕ перечисляет — это всегда
 // доступная социальная кнопка, законность которой сервер проверяет на сабмите.
-const SUBJECTIVE: { code: ShukhCode; label: string }[] = [
-  { code: 6, label: 'ШУХ: завис (Ш-6)' },
-  { code: 9, label: 'ШУХ: зря крикнул (Ш-9)' },
-  { code: 10, label: 'ШУХ: небрежность (Ш-10)' },
-]
+// Сам перечень кодов — из контракта (SUBJECTIVE_CODES), здесь только подписи:
+// Record по этому же типу заставит компилятор потребовать подпись на новый код.
+const SUBJECTIVE_LABEL: Record<(typeof SUBJECTIVE_CODES)[number], string> = {
+  6: 'ШУХ: завис (Ш-6)',
+  9: 'ШУХ: зря крикнул (Ш-9)',
+  10: 'ШУХ: небрежность (Ш-10)',
+}
 
 export function SeatMenu({ seat, name, you, legal, onAction, onClose }: SeatMenuProps) {
   useEffect(() => {
@@ -46,12 +48,12 @@ export function SeatMenu({ seat, name, you, legal, onAction, onClose }: SeatMenu
         <Button onClick={() => fire(askCount)}>Сколько карт?</Button>
       )}
       {isLegal(legal, askWest) && <Button onClick={() => fire(askWest)}>Есть Запад?</Button>}
-      {SUBJECTIVE.map((s) => (
+      {SUBJECTIVE_CODES.map((code) => (
         <Button
-          key={s.code}
-          onClick={() => fire({ type: 'claimSubjective', claimant: you, target: seat, code: s.code })}
+          key={code}
+          onClick={() => fire({ type: 'claimSubjective', claimant: you, target: seat, code })}
         >
-          {s.label}
+          {SUBJECTIVE_LABEL[code]}
         </Button>
       ))}
     </div>

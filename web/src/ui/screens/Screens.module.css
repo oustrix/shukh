@@ -12,6 +12,12 @@
   font: inherit;
   min-width: 220px;
 }
+/* Код комнаты диктуют голосом и переписывают вручную — моноширинный шрифт с
+   разрядкой, чтобы 0/O и 1/I не путались. */
+.code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.15em;
+}
 .players {
   list-style: none;
   padding: 0;
