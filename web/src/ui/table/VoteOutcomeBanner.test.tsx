@@ -69,6 +69,20 @@ describe('баннер исхода разбора (R-8.6)', () => {
     vi.useRealTimers()
   })
 
+  it('находит voteResolved, за которым в ТОМ ЖЕ апдейте пришло shukhAssessed', () => {
+    // Реальный порядок движка: resolveAdjudication пишет voteResolved, и сразу за ним
+    // assessShukh пишет shukhAssessed (engine/apply.go) — оба приходят одним update.
+    // Реакция «только на последний элемент буфера» тут молчит навсегда: последним
+    // всегда оказывается shukhAssessed, и баннер исхода не появлялся бы в реальной игре.
+    const { rerender } = render(<VoteOutcomeBanner events={[]} />)
+    rerender(
+      <VoteOutcomeBanner
+        events={[fresh(voteResolvedOverturned), { type: 'shukhAssessed', offender: 1, code: 8 }]}
+      />,
+    )
+    expect(screen.getByTestId('vote-outcome-banner')).toHaveTextContent(/отклонён/i)
+  })
+
   it('игнорирует события других типов', () => {
     const { rerender } = render(<VoteOutcomeBanner events={[]} />)
     rerender(<VoteOutcomeBanner events={[{ type: 'gameStarted', turn: 0 }]} />)
