@@ -9,7 +9,7 @@ import { Lobby } from './Lobby'
 import { Table } from './Table'
 import styles from './Screens.module.css'
 
-type Probe = 'checking' | 'seated' | 'needsName' | 'roomNotFound'
+type Probe = 'checking' | 'seated' | 'needsName' | 'roomNotFound' | 'networkError'
 
 const joinErrorText: Record<string, string> = {
   full: 'Комната заполнена',
@@ -25,8 +25,15 @@ export function Room() {
   const [joinError, setJoinError] = useState<string | null>(null)
 
   const check = useCallback(async () => {
-    const res = await me(code)
-    setProbe(res.kind === 'seat' ? 'seated' : res.kind === 'roomNotFound' ? 'roomNotFound' : 'needsName')
+    setProbe('checking')
+    try {
+      const res = await me(code)
+      setProbe(res.kind === 'seat' ? 'seated' : res.kind === 'roomNotFound' ? 'roomNotFound' : 'needsName')
+    } catch {
+      // fetch сам упал (оффлайн/DNS/сервер не поднят) — это не «комната не найдена»,
+      // сервер вообще не ответил. Даём выход вместо вечной «Проверяем место…».
+      setProbe('networkError')
+    }
   }, [code])
 
   useEffect(() => {
@@ -34,6 +41,15 @@ export function Room() {
   }, [check])
 
   if (probe === 'checking') return <div className={styles.centered}>Проверяем место…</div>
+  if (probe === 'networkError') {
+    return (
+      <div className={styles.centered}>
+        <h2>Не удалось проверить место</h2>
+        <p>Сервер не ответил — проверьте соединение и попробуйте ещё раз.</p>
+        <Button onClick={() => void check()}>Повторить</Button>
+      </div>
+    )
+  }
   if (probe === 'roomNotFound') {
     return (
       <div className={styles.centered}>

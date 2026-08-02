@@ -1,9 +1,12 @@
+import type { ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { Room } from './Room'
 import { ROOM_ROUTE } from '../../routes'
 import { ApiError, joinRoom, me } from '../../net/rooms'
+import type { GameState } from '../../store/game'
+import { buildSeatView } from '../../fixtures/seatView'
 
 // ESM-экспорты не патчатся через vi.spyOn — модуль подменяется целиком (vi.mock),
 // ApiError берём настоящий, чтобы проверять реальную ветку обработки ошибки.
@@ -11,6 +14,30 @@ vi.mock('../../net/rooms', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../net/rooms')>()
   return { ...actual, me: vi.fn(), joinRoom: vi.fn() }
 })
+
+// RoomBody (ветвление по stage/conn) читает стор только через useGame — подменяем
+// весь модуль GameProvider: GameProvider становится сквозным (без транспорта),
+// useGame читает мутируемый gameState, который каждый тест выставляет через setGameState.
+let gameState: GameState = {
+  snapshot: null,
+  events: [],
+  conn: 'open',
+  lastError: null,
+  play: () => {},
+}
+
+vi.mock('../../store/GameProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../store/GameProvider')>()
+  return {
+    ...actual,
+    GameProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+    useGame: (selector: (s: GameState) => unknown) => selector(gameState),
+  }
+})
+
+function setGameState(over: Partial<GameState>) {
+  gameState = { snapshot: null, events: [], conn: 'open', lastError: null, play: () => {}, ...over }
+}
 
 function renderAt(code: string) {
   return render(
@@ -22,9 +49,13 @@ function renderAt(code: string) {
   )
 }
 
+beforeEach(() => {
+  setGameState({})
+})
+
 afterEach(() => vi.resetAllMocks())
 
-describe('экран комнаты', () => {
+describe('экран комнаты — проба места', () => {
   it('несуществующая комната → понятный экран, а не бесконечная загрузка', async () => {
     vi.mocked(me).mockResolvedValue({ kind: 'roomNotFound' })
     renderAt('ZZZZ')
@@ -48,5 +79,133 @@ describe('экран комнаты', () => {
     await userEvent.type(await screen.findByLabelText('Имя'), 'Боря')
     await userEvent.click(screen.getByRole('button', { name: /Занять место/i }))
     expect(await screen.findByText(/Комната заполнена/i)).toBeInTheDocument()
+  })
+
+  it('сбой сети при пробе → не бесконечная загрузка, а сообщение и «Повторить»', async () => {
+    // me() бросает исключение (fetch упал — оффлайн/DNS/сервер не поднят), а не
+    // возвращает MeResult: это другой класс сбоя, чем «комната не найдена», и врать
+    // пользователю про закрытую комнату нельзя.
+    vi.mocked(me).mockRejectedValueOnce(new Error('network down'))
+    vi.mocked(me).mockResolvedValueOnce({ kind: 'seatNotFound' })
+    renderAt('ABCD')
+    expect(await screen.findByText(/не удалось проверить место/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Комната не найдена/i)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Повторить/i }))
+    expect(me).toHaveBeenCalledTimes(2)
+    expect(await screen.findByLabelText('Имя')).toBeInTheDocument()
+  })
+})
+
+describe('экран комнаты — RoomBody: ветвление по stage/conn после успешной пробы', () => {
+  beforeEach(() => {
+    vi.mocked(me).mockResolvedValue({ kind: 'seat', seat: 0 })
+  })
+
+  it('stage lobby → рендерит Lobby (состав комнаты)', async () => {
+    setGameState({
+      snapshot: {
+        roomCode: 'ABCD',
+        you: 0,
+        stage: 'lobby',
+        host: 0,
+        seats: [{ seat: 0, name: 'Аня' }],
+        view: null,
+        legal: [],
+      },
+    })
+    renderAt('ABCD')
+    expect(await screen.findByTestId('players')).toHaveTextContent('Аня')
+  })
+
+  it('stage playing → рендерит стол', async () => {
+    setGameState({
+      snapshot: {
+        roomCode: 'ABCD',
+        you: 0,
+        stage: 'playing',
+        host: 0,
+        seats: [{ seat: 0, name: 'Аня' }],
+        view: buildSeatView(),
+        legal: [],
+      },
+    })
+    renderAt('ABCD')
+    expect(await screen.findByTestId('action-bar')).toBeInTheDocument()
+  })
+
+  it('stage finished → стол остаётся и поверх него баннер итога партии', async () => {
+    setGameState({
+      snapshot: {
+        roomCode: 'ABCD',
+        you: 0,
+        stage: 'finished',
+        host: 0,
+        seats: [
+          { seat: 0, name: 'Аня' },
+          { seat: 1, name: 'Боря' },
+        ],
+        view: buildSeatView({ finish: [1, 0] }),
+        legal: [],
+      },
+    })
+    renderAt('ABCD')
+    expect(await screen.findByTestId('action-bar')).toBeInTheDocument()
+    const banner = await screen.findByText(/Партия окончена/i)
+    expect(banner).toBeInTheDocument()
+    const order = screen.getAllByRole('listitem').map((li) => li.textContent)
+    expect(order).toEqual(['Боря', 'Аня'])
+  })
+
+  it('conn lost → терминальный экран «Место потеряно», а не стол/лобби', async () => {
+    setGameState({
+      conn: 'lost',
+      lastError: { code: 'seatLost', message: 'место потеряно' },
+      snapshot: {
+        roomCode: 'ABCD',
+        you: 0,
+        stage: 'lobby',
+        host: 0,
+        seats: [{ seat: 0, name: 'Аня' }],
+        view: null,
+        legal: [],
+      },
+    })
+    renderAt('ABCD')
+    expect(await screen.findByText(/Место потеряно/i)).toBeInTheDocument()
+    expect(screen.queryByTestId('players')).not.toBeInTheDocument()
+  })
+
+  it('conn connecting → баннер подключения поверх лобби', async () => {
+    setGameState({
+      conn: 'connecting',
+      snapshot: {
+        roomCode: 'ABCD',
+        you: 0,
+        stage: 'lobby',
+        host: 0,
+        seats: [{ seat: 0, name: 'Аня' }],
+        view: null,
+        legal: [],
+      },
+    })
+    renderAt('ABCD')
+    expect(await screen.findByRole('status')).toHaveTextContent(/Подключение/i)
+  })
+
+  it('conn reconnecting → баннер переподключения поверх лобби', async () => {
+    setGameState({
+      conn: 'reconnecting',
+      snapshot: {
+        roomCode: 'ABCD',
+        you: 0,
+        stage: 'lobby',
+        host: 0,
+        seats: [{ seat: 0, name: 'Аня' }],
+        view: null,
+        legal: [],
+      },
+    })
+    renderAt('ABCD')
+    expect(await screen.findByRole('status')).toHaveTextContent(/переподключаемся/i)
   })
 })
