@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { isLegal } from '../../contract/types'
-import type { Action, ShukhCode, VoteView } from '../../contract/types'
+import type { Action, VoteView } from '../../contract/types'
 import { Button } from '../kit/Button'
 import styles from './Table.module.css'
 
@@ -10,12 +10,13 @@ interface ShukhVoteModalProps {
   legal: Action[]
   nameOf: (seat: number) => string
   onVote: (v: 'forShukh' | 'againstShukh') => void
-  outcome?: { code: ShukhCode; overturned: boolean }
 }
 
 // Разбор R-8.6. Открывается по view.vote (W3-6), поэтому переподключившийся сразу видит
 // идущее голосование. Показываем ФАКТ голоса, но не содержание — бюллетень тайный (§8.4).
-export function ShukhVoteModal({ vote, deadline, legal, nameOf, onVote, outcome }: ShukhVoteModalProps) {
+// Исход (voteResolved) сюда не приходит: сервер обнуляет view.vote тем же апдейтом, что несёт
+// это событие, — к моменту исхода модалка уже размонтирована. Исход — отдельный VoteOutcomeBanner.
+export function ShukhVoteModal({ vote, deadline, legal, nameOf, onVote }: ShukhVoteModalProps) {
   const [left, setLeft] = useState(() => remaining(deadline))
   useEffect(() => {
     if (deadline === null) return
@@ -48,11 +49,7 @@ export function ShukhVoteModal({ vote, deadline, legal, nameOf, onVote, outcome 
             </li>
           ))}
         </ul>
-        {outcome ? (
-          <p className={styles.voteOutcome} data-testid="vote-outcome">
-            {outcome.overturned ? 'ШУХ отклонён — Ш-8 предъявившему' : 'ШУХ подтверждён'}
-          </p>
-        ) : canVote ? (
+        {canVote ? (
           <div className={styles.voteButtons}>
             <Button onClick={() => onVote('forShukh')}>За ШУХ</Button>
             <Button onClick={() => onVote('againstShukh')}>Против ШУХа</Button>

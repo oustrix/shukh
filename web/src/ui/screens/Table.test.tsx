@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { create } from 'zustand'
 import type { Action, GameSnapshot } from '../../contract/types'
@@ -114,4 +114,16 @@ test('«Сбросить Запад» активна при discardWest в legal
   expect(btn).toBeEnabled()
   await userEvent.click(btn)
   expect(sent).toContainEqual({ type: 'discardWest' })
+})
+
+test('исход разбора показывается баннером по событию voteResolved, а не через view.vote', () => {
+  // Регрессия бага: сервер обнуляет view.vote тем же апдейтом, что несёт voteResolved,
+  // так что модалка к этому моменту уже размонтирована — исход обязан жить по событию.
+  setSnapshot({})
+  renderTable()
+  expect(screen.queryByTestId('vote-outcome-banner')).not.toBeInTheDocument()
+  act(() => {
+    store.setState((s) => ({ events: [...s.events, { type: 'voteResolved', code: 6, overturned: false }] }))
+  })
+  expect(screen.getByTestId('vote-outcome-banner')).toHaveTextContent(/подтверждён/i)
 })

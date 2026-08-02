@@ -30,18 +30,7 @@ describe('модалка голосования R-8.6', () => {
     await userEvent.click(screen.getByRole('button', { name: /Против ШУХа/i }))
     expect(onVote).toHaveBeenCalledWith('againstShukh')
   })
-
-  it('исход берётся из события voteResolved', () => {
-    render(
-      <ShukhVoteModal
-        vote={vote}
-        deadline={null}
-        legal={[]}
-        nameOf={nameOf}
-        onVote={vi.fn()}
-        outcome={{ code: 8, overturned: true }}
-      />,
-    )
-    expect(screen.getByTestId('vote-outcome')).toHaveTextContent(/отклонён/i)
-  })
+  // Исход разбора (voteResolved) модалка больше не показывает: сервер обнуляет view.vote
+  // тем же апдейтом, что несёт это событие, поэтому проп outcome был недостижим в реальной
+  // игре. Баннер исхода и его тесты — VoteOutcomeBanner.tsx / VoteOutcomeBanner.test.tsx.
 })

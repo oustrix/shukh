@@ -14,6 +14,7 @@ import { OpponentSeat } from '../table/OpponentSeat'
 import { SeatMenu } from '../table/SeatMenu'
 import { ShukhZone } from '../table/ShukhZone'
 import { ShukhVoteModal } from '../table/ShukhVoteModal'
+import { VoteOutcomeBanner } from '../table/VoteOutcomeBanner'
 import { ActionBar, type BarAction } from '../table/ActionBar'
 import styles from '../table/Table.module.css'
 
@@ -24,8 +25,6 @@ export function Table() {
   const vote = useGame(selectVote)
   const voteDeadline = useGame(selectVoteDeadline)
   const events = useGame(selectEvents)
-  // Исход показывает последнее voteResolved — состояние разбора уже закрыто, событие живёт в логе.
-  const lastResolved = [...events].reverse().find((e) => e.type === 'voteResolved')
   const play = useGame((s) => s.play)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [menuSeat, setMenuSeat] = useState<number | null>(null)
@@ -87,6 +86,10 @@ export function Table() {
 
   return (
     <div className={styles.table}>
+      {/* Живёт по событию, а не по view.vote: сервер обнуляет view.vote тем же апдейтом,
+          что несёт voteResolved, поэтому исход нельзя вешать на состояние модалки —
+          она к этому моменту уже размонтирована. Видна всем за столом, не только спорившим. */}
+      <VoteOutcomeBanner events={events} />
       <div className={styles.opponents}>
         {view.opponents.map((o) => (
           <OpponentSeat
@@ -128,11 +131,6 @@ export function Table() {
           legal={legal}
           nameOf={nameOf}
           onVote={(v) => play({ type: 'vote', vote: v })}
-          outcome={
-            lastResolved && lastResolved.type === 'voteResolved'
-              ? { code: lastResolved.code, overturned: lastResolved.overturned }
-              : undefined
-          }
         />
       )}
     </div>

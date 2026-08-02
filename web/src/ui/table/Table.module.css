@@ -130,10 +130,6 @@
   margin: 8px 0;
   padding: 0;
 }
-.voteOutcome {
-  font-weight: 700;
-  color: var(--accent);
-}
 .voteTallying {
   opacity: 0.8;
 }
@@ -142,4 +138,38 @@
   gap: 0.75rem;
   justify-content: center;
   margin-top: 0.75rem;
+}
+.voteOutcomeBanner {
+  /* fixed у верхней кромки экрана — видно всем за столом (не только спорившим) и
+     не перекрывает .hand внизу. */
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9;
+  max-width: min(90vw, 420px);
+  padding: 0.6rem 1.1rem;
+  text-align: center;
+  font-weight: 600;
+  color: var(--warn-fg, #fff);
+  background: var(--warn-bg, #6b4b16);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  animation: voteOutcomeAppear 0.2s ease-out;
+}
+@keyframes voteOutcomeAppear {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voteOutcomeBanner {
+    animation: none;
+  }
 }
