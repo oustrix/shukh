@@ -1,6 +1,6 @@
 .table {
   display: grid;
-  grid-template-rows: auto 1fr auto auto auto;
+  grid-template-rows: auto 1fr auto auto auto auto;
   gap: var(--gap);
   min-height: 100vh;
   padding: 16px;
@@ -58,6 +58,13 @@
   justify-content: center;
   gap: var(--gap);
   flex-wrap: wrap;
+}
+/* Подпись состояния: чего от игрока ждут прямо сейчас (и когда — ничего). */
+.status {
+  text-align: center;
+  font-weight: 600;
+  opacity: 0.9;
+  min-height: 1.2em;
 }
 .actionBar {
   display: flex;

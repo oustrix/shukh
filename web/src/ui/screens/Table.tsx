@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   cardKey,
+  giveShukhKeys,
   isCardPlayable,
   isLegal,
   isShukhTakeable,
@@ -34,18 +35,41 @@ export function Table() {
   const nameBySeat = new Map(seats.map((s) => [s.seat, s.name]))
   const nameOf = (seat: number) => nameBySeat.get(seat) ?? `Игрок ${seat}`
 
+  // Оплата ШУХа (§8). При открытом гейте движок (engine/legal.go, ветка s.Pending != nil)
+  // кладёт платящему ТОЛЬКО GiveShukhCard — по одному на каждую отдаваемую карту; всем
+  // остальным за столом достаётся пустой legal. Отсюда и признак «плачу я»: он выводится
+  // из legal, а не из собственного счёта правил (клиент правил не считает). Последнюю
+  // карту отдавать нельзя (R-8.1.1/I-2) — движок её просто не предложит, так что
+  // отдельной проверки тут не нужно: выбираемо ровно то, что перечислено.
+  const giveKeys = giveShukhKeys(legal)
+  const paying = giveKeys.size > 0
+
   const playableKeys = new Set(view.hand.filter((c) => isCardPlayable(legal, c)).map(cardKey))
+  // Один и тот же механизм выбора в руке обслуживает и ход, и оплату — параллельного нет.
+  const selectableKeys = paying ? giveKeys : playableKeys
   const selectedCard = view.hand.find((c) => cardKey(c) === selectedKey) ?? null
-  const canConfirm = selectedKey != null && playableKeys.has(selectedKey)
+  const canConfirm = selectedKey != null && selectableKeys.has(selectedKey)
   const canTakeBottom = isLegal(legal, { type: 'takeBottomAndPass' })
   const yourZoneTakeable = isShukhTakeable(legal, view.you)
   const claim = claimShukhInLegal(legal)
 
   const confirmPlay = () => {
     if (!canConfirm || !selectedCard) return
-    play({ type: 'playCard', card: selectedCard })
+    play(paying ? { type: 'giveShukhCard', card: selectedCard } : { type: 'playCard', card: selectedCard })
     setSelectedKey(null)
   }
+
+  // Подпись состояния: игрок обязан понимать, чего от него ждут — и, что не менее
+  // важно, когда от него не ждут ничего. Всё выводится из снапшота, правил не считаем.
+  const statusText = paying
+    ? 'Оплатите ШУХ: отдайте карту'
+    : vote
+      ? 'Идёт разбор ШУХа (R-8.6)'
+      : legal.length === 0
+        ? 'Сейчас вы ничего не можете — ждём других игроков'
+        : view.turn === view.you
+          ? 'Ваш ход'
+          : `Ходит ${nameOf(view.turn)}`
   const onSelect = (card: (typeof view.hand)[number]) => {
     const key = cardKey(card)
     if (key === selectedKey) {
@@ -57,7 +81,7 @@ export function Table() {
 
   const declareOneCard = legal.find((a) => a.type === 'declareOneCard')
   const barActions: BarAction[] = [
-    { label: 'Сходить', enabled: canConfirm, onClick: confirmPlay },
+    { label: paying ? 'Отдать карту' : 'Сходить', enabled: canConfirm, onClick: confirmPlay },
     {
       label: 'Взять низ',
       enabled: canTakeBottom,
@@ -117,11 +141,14 @@ export function Table() {
         onTake={() => play({ type: 'takeShukhCards', seat: view.you })}
         label={`Ваша ШУХ-зона: ${view.shukhPending}`}
       />
+      <div className={styles.status} role="status" data-testid="table-status">
+        {statusText}
+      </div>
       <ActionBar actions={barActions} />
       <Hand
         cards={view.hand}
         selectedKey={selectedKey}
-        playableKeys={playableKeys}
+        playableKeys={selectableKeys}
         onSelect={onSelect}
       />
       {vote && (

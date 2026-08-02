@@ -127,3 +127,60 @@ test('исход разбора показывается баннером по �
   })
   expect(screen.getByTestId('vote-outcome-banner')).toHaveTextContent(/подтверждён/i)
 })
+
+describe('оплата ШУХа — открытый гейт §8 (giveShukhCard)', () => {
+  // При открытом гейте движок (engine/legal.go, ветка s.Pending != nil) кладёт
+  // платящему ТОЛЬКО GiveShukhCard на каждую отдаваемую карту, а всем остальным —
+  // пустой legal. Без UI первый же ШУХ намертво замораживал стол.
+  const HAND = [
+    { suit: '♠' as const, rank: 6 },
+    { suit: '♥' as const, rank: 12 },
+    { suit: '♦' as const, rank: 9 },
+  ]
+
+  function setPaying() {
+    setSnapshot({
+      view: buildSeatView({ hand: HAND, shukhPending: 1 }),
+      // Последняя карта неотдаваема (R-8.1.1/I-2) — движок её и не предлагает:
+      // в legal только две из трёх.
+      legal: [
+        { type: 'giveShukhCard', card: HAND[0] },
+        { type: 'giveShukhCard', card: HAND[1] },
+      ],
+    })
+  }
+
+  test('платящий видит, что от него хотят', () => {
+    setPaying()
+    renderTable()
+    expect(screen.getByTestId('table-status')).toHaveTextContent(/оплатите шух/i)
+  })
+
+  test('выбор карты идёт тем же механизмом руки и шлёт giveShukhCard, а не playCard', async () => {
+    setPaying()
+    renderTable()
+    await userEvent.click(screen.getByRole('button', { name: '6♠' }))
+    const confirm = screen.getByRole('button', { name: /Отдать карту/i })
+    expect(confirm).toBeEnabled()
+    await userEvent.click(confirm)
+    expect(sent).toEqual([{ type: 'giveShukhCard', card: HAND[0] }])
+  })
+
+  test('карта, которой нет в legal, неотдаваема (последнюю отдавать нельзя, I-2)', () => {
+    setPaying()
+    renderTable()
+    expect(screen.getByRole('button', { name: '6♠' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '9♦' })).toBeNull()
+  })
+
+  test('остальные за столом честно видят, что не могут ничего: пустой legal', () => {
+    setSnapshot({ view: buildSeatView({ hand: HAND, turn: 1 }), legal: [] })
+    renderTable()
+    expect(screen.getByTestId('table-status')).toHaveTextContent(/ничего не можете/i)
+    expect(screen.queryAllByRole('button', { name: /[6-9♠♥♦]/ })).toHaveLength(0)
+    screen
+      .getByTestId('action-bar')
+      .querySelectorAll('button')
+      .forEach((b) => expect(b).toBeDisabled())
+  })
+})

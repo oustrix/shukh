@@ -168,6 +168,16 @@ export function isCardPlayable(legal: Action[], card: Card): boolean {
   return isLegal(legal, { type: 'playCard', card })
 }
 
+// Ключи карт, которые можно отдать в оплату ШУХа (§8). Непустой набор = гейт открыт
+// ИМЕННО на нас: движок перечисляет giveShukhCard только платящему (engine/legal.go),
+// остальным при открытом гейте достаётся пустой legal. Последней карты в наборе не
+// будет — её отдавать нельзя (R-8.1.1/I-2), и движок её не предлагает.
+export function giveShukhKeys(legal: Action[]): Set<string> {
+  return new Set(
+    legal.filter((a) => a.type === 'giveShukhCard').map((a) => cardKey(a.card)),
+  )
+}
+
 // Первый claimShukh в списке легальных (открыто ли ШУХ-окно). Клиент не судит —
 // сервер кладёт конкретный предъявляемый ШУХ в legal, кнопка лишь его отправляет.
 export function claimShukhInLegal(
