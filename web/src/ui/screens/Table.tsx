@@ -7,12 +7,13 @@ import {
   claimShukhInLegal,
 } from '../../contract/types'
 import { useGame } from '../../store/GameProvider'
-import { selectSeats, selectView, selectLegal } from '../../store/game'
+import { selectSeats, selectView, selectLegal, selectVote, selectVoteDeadline, selectEvents } from '../../store/game'
 import { Hand } from '../table/Hand'
 import { Con } from '../table/Con'
 import { OpponentSeat } from '../table/OpponentSeat'
 import { SeatMenu } from '../table/SeatMenu'
 import { ShukhZone } from '../table/ShukhZone'
+import { ShukhVoteModal } from '../table/ShukhVoteModal'
 import { ActionBar, type BarAction } from '../table/ActionBar'
 import styles from '../table/Table.module.css'
 
@@ -20,6 +21,11 @@ export function Table() {
   const view = useGame(selectView)
   const seats = useGame(selectSeats)
   const legal = useGame(selectLegal)
+  const vote = useGame(selectVote)
+  const voteDeadline = useGame(selectVoteDeadline)
+  const events = useGame(selectEvents)
+  // Исход показывает последнее voteResolved — состояние разбора уже закрыто, событие живёт в логе.
+  const lastResolved = [...events].reverse().find((e) => e.type === 'voteResolved')
   const play = useGame((s) => s.play)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [menuSeat, setMenuSeat] = useState<number | null>(null)
@@ -115,6 +121,20 @@ export function Table() {
         playableKeys={playableKeys}
         onSelect={onSelect}
       />
+      {vote && (
+        <ShukhVoteModal
+          vote={vote}
+          deadline={voteDeadline}
+          legal={legal}
+          nameOf={nameOf}
+          onVote={(v) => play({ type: 'vote', vote: v })}
+          outcome={
+            lastResolved && lastResolved.type === 'voteResolved'
+              ? { code: lastResolved.code, overturned: lastResolved.overturned }
+              : undefined
+          }
+        />
+      )}
     </div>
   )
 }

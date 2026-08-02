@@ -137,3 +137,9 @@
 .voteTallying {
   opacity: 0.8;
 }
+.voteButtons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
