@@ -85,3 +85,33 @@ test('«Одна карта!» активна при declareOneCard в legal и 
   await userEvent.click(btn)
   expect(sent).toContainEqual({ type: 'declareOneCard', seat: 0 })
 })
+
+test('«Западло» отключена, пока podkladkaWest не пришёл в legal', () => {
+  setSnapshot({ legal: [] })
+  renderTable()
+  expect(screen.getByRole('button', { name: 'Западло' })).toBeDisabled()
+})
+
+test('«Западло» активна при podkladkaWest в legal и шлёт именно его', async () => {
+  setSnapshot({ legal: [{ type: 'podkladkaWest' }] })
+  renderTable()
+  const btn = screen.getByRole('button', { name: 'Западло' })
+  expect(btn).toBeEnabled()
+  await userEvent.click(btn)
+  expect(sent).toContainEqual({ type: 'podkladkaWest' })
+})
+
+test('«Сбросить Запад» отключена, пока discardWest не пришёл в legal', () => {
+  setSnapshot({ legal: [] })
+  renderTable()
+  expect(screen.getByRole('button', { name: 'Сбросить Запад' })).toBeDisabled()
+})
+
+test('«Сбросить Запад» активна при discardWest в legal и шлёт именно его (R-9.4.2.1)', async () => {
+  setSnapshot({ legal: [{ type: 'discardWest' }] })
+  renderTable()
+  const btn = screen.getByRole('button', { name: 'Сбросить Запад' })
+  expect(btn).toBeEnabled()
+  await userEvent.click(btn)
+  expect(sent).toContainEqual({ type: 'discardWest' })
+})
