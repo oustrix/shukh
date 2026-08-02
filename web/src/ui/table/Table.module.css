@@ -13,11 +13,32 @@
   flex-wrap: wrap;
 }
 .seat {
+  position: relative;
   text-align: center;
   min-width: 84px;
 }
 .seatName {
+  font: inherit;
   font-weight: 600;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.seatMenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  min-width: 12rem;
+  background: var(--surface, #23232b);
+  border: 1px solid var(--border, #44444f);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.5rem 1rem rgb(0 0 0 / 0.35);
 }
 .seatCount {
   opacity: 0.85;

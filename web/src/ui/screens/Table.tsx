@@ -11,6 +11,7 @@ import { selectSeats, selectView, selectLegal } from '../../store/game'
 import { Hand } from '../table/Hand'
 import { Con } from '../table/Con'
 import { OpponentSeat } from '../table/OpponentSeat'
+import { SeatMenu } from '../table/SeatMenu'
 import { ShukhZone } from '../table/ShukhZone'
 import { ActionBar, type BarAction } from '../table/ActionBar'
 import styles from '../table/Table.module.css'
@@ -21,6 +22,7 @@ export function Table() {
   const legal = useGame(selectLegal)
   const play = useGame((s) => s.play)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [menuSeat, setMenuSeat] = useState<number | null>(null)
 
   if (!view) return <div className={styles.con}>Загрузка стола…</div>
 
@@ -81,7 +83,22 @@ export function Table() {
     <div className={styles.table}>
       <div className={styles.opponents}>
         {view.opponents.map((o) => (
-          <OpponentSeat key={o.seat} name={nameOf(o.seat)} opponent={o} />
+          <OpponentSeat
+            key={o.seat}
+            name={nameOf(o.seat)}
+            opponent={o}
+            menuOpen={menuSeat === o.seat}
+            onToggleMenu={() => setMenuSeat(menuSeat === o.seat ? null : o.seat)}
+          >
+            <SeatMenu
+              seat={o.seat}
+              name={nameOf(o.seat)}
+              you={view.you}
+              legal={legal}
+              onAction={play}
+              onClose={() => setMenuSeat(null)}
+            />
+          </OpponentSeat>
         ))}
       </div>
       <Con table={view.table} />
