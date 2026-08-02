@@ -6,8 +6,8 @@ import {
   isLegal,
   isShukhTakeable,
   claimShukhInLegal,
+  nameOfSeat,
 } from '../../contract/types'
-import type { Action } from '../../contract/types'
 import { useGame } from '../../store/GameProvider'
 import {
   selectSeats,
@@ -16,9 +16,8 @@ import {
   selectVote,
   selectVoteDeadline,
   selectEvents,
-  selectConn,
 } from '../../store/game'
-import { useNotify } from '../kit/Notice'
+import { useDispatch } from '../useDispatch'
 import { Hand } from '../table/Hand'
 import { Con } from '../table/Con'
 import { OpponentSeat } from '../table/OpponentSeat'
@@ -29,6 +28,16 @@ import { VoteOutcomeBanner } from '../table/VoteOutcomeBanner'
 import { ActionBar, type BarAction } from '../table/ActionBar'
 import styles from '../table/Table.module.css'
 
+// Ходы без карты и без цели: подпись — единственное, чем они отличаются друг от друга.
+// «Сбросить Запад» (discardWest) — обязательный ход эндшпиля §9.2 (R-9.4.2.1): без него
+// стол на двоих встаёт намертво.
+type SimpleActionType = 'takeBottomAndPass' | 'podkladkaWest' | 'discardWest'
+const SIMPLE_ACTIONS: [SimpleActionType, string][] = [
+  ['takeBottomAndPass', 'Взять низ'],
+  ['podkladkaWest', 'Западло'],
+  ['discardWest', 'Сбросить Запад'],
+]
+
 export function Table() {
   const view = useGame(selectView)
   const seats = useGame(selectSeats)
@@ -36,32 +45,13 @@ export function Table() {
   const vote = useGame(selectVote)
   const voteDeadline = useGame(selectVoteDeadline)
   const events = useGame(selectEvents)
-  const conn = useGame(selectConn)
-  const play = useGame((s) => s.play)
-  const notify = useNotify()
+  const { online, send } = useDispatch()
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [menuSeat, setMenuSeat] = useState<number | null>(null)
 
   if (!view) return <div className={styles.con}>Загрузка стола…</div>
 
-  const nameBySeat = new Map(seats.map((s) => [s.seat, s.name]))
-  const nameOf = (seat: number) => nameBySeat.get(seat) ?? `Игрок ${seat}`
-
-  // В reconnecting стол виден по последнему снапшоту, но действия заблокированы (§8):
-  // за время обрыва позиция ушла вперёд, и отложенная доставка запрещена (W3-5).
-  const online = conn === 'open'
-  // Единственная точка отправки. Транспорт и так молча отбросил бы действие в обрыве —
-  // именно молча, что неотличимо от проглоченного клика; здесь оно отбрасывается
-  // ВИДИМО. Возвращаемое значение говорит вызывающему, дошло ли действие: подтверждение
-  // хода не имеет права сбрасывать выбор карты, если ход никуда не уехал.
-  const send = (action: Action): boolean => {
-    if (!online) {
-      notify('Связь потеряна — действие не отправлено. Повторите после переподключения')
-      return false
-    }
-    play(action)
-    return true
-  }
+  const nameOf = (seat: number) => nameOfSeat(seats, seat)
 
   // Оплата ШУХа (§8). При открытом гейте движок (engine/legal.go, ветка s.Pending != nil)
   // кладёт платящему ТОЛЬКО GiveShukhCard — по одному на каждую отдаваемую карту; всем
@@ -81,7 +71,6 @@ export function Table() {
   const handKeys = online ? legalKeys : new Set<string>()
   const selectedCard = view.hand.find((c) => cardKey(c) === selectedKey) ?? null
   const canConfirm = selectedKey != null && legalKeys.has(selectedKey)
-  const canTakeBottom = isLegal(legal, { type: 'takeBottomAndPass' })
   const yourZoneTakeable = isShukhTakeable(legal, view.you)
   const claim = claimShukhInLegal(legal)
 
@@ -120,22 +109,13 @@ export function Table() {
   const declareOneCard = legal.find((a) => a.type === 'declareOneCard')
   const barActions: BarAction[] = [
     { label: paying ? 'Отдать карту' : 'Сходить', enabled: online && canConfirm, onClick: confirmPlay },
-    {
-      label: 'Взять низ',
-      enabled: online && canTakeBottom,
-      onClick: () => send({ type: 'takeBottomAndPass' }),
-    },
-    {
-      label: 'Западло',
-      enabled: online && isLegal(legal, { type: 'podkladkaWest' }),
-      onClick: () => send({ type: 'podkladkaWest' }),
-    },
-    {
-      // R-9.4.2.1: в эндшпиле §9.2 сброс 6(2)♥ — обязательный ход, без него стол встаёт.
-      label: 'Сбросить Запад',
-      enabled: online && isLegal(legal, { type: 'discardWest' }),
-      onClick: () => send({ type: 'discardWest' }),
-    },
+    // Бескарточные ходы отличаются только подписью — держим их данными, чтобы
+    // следующий такой добавлялся строкой, а не копией блока.
+    ...SIMPLE_ACTIONS.map(([type, label]) => ({
+      label,
+      enabled: online && isLegal(legal, { type }),
+      onClick: () => send({ type }),
+    })),
     { label: 'ШУХ!', enabled: online && claim != null, onClick: () => claim && send(claim) },
     {
       // Настоящее объявление §6, а не клиент-локальный флаг: теперь Ш-11 ловится по правилам.

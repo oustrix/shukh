@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { ApiError, joinRoom, me } from '../../net/rooms'
 import { STORED_NAME_KEY } from '../../routes'
 import { GameProvider, useGame } from '../../store/GameProvider'
+import { nameOfSeat } from '../../contract/types'
 import { selectConn, selectLastError, selectSeats, selectStage, selectView } from '../../store/game'
 import { Button } from '../kit/Button'
 import { NoticeArea, useNotify } from '../kit/Notice'
@@ -62,21 +63,19 @@ export function Room() {
   // после ре-рендера. Ref срабатывает сразу — это и есть настоящая защёлка.
   const inFlight = useRef(false)
   const [busy, setBusy] = useState(false)
-  const startRequest = () => {
+  const startRequest = useCallback(() => {
     if (inFlight.current) return false
     inFlight.current = true
     setBusy(true)
     return true
-  }
-  const endRequest = () => {
+  }, [])
+  const endRequest = useCallback(() => {
     inFlight.current = false
     setBusy(false)
-  }
+  }, [])
 
   const check = useCallback(async () => {
-    if (inFlight.current) return
-    inFlight.current = true
-    setBusy(true)
+    if (!startRequest()) return
     setProbe('checking')
     try {
       const res = await me(code)
@@ -86,10 +85,9 @@ export function Room() {
       // сервер вообще не ответил. Даём выход вместо вечной «Проверяем место…».
       setProbe('networkError')
     } finally {
-      inFlight.current = false
-      setBusy(false)
+      endRequest()
     }
-  }, [code])
+  }, [code, startRequest, endRequest])
 
   useEffect(() => {
     void check()
@@ -187,7 +185,7 @@ function RoomBody() {
 function FinishBanner() {
   const view = useGame(selectView)
   const seats = useGame(selectSeats)
-  const nameOf = (seat: number) => seats.find((s) => s.seat === seat)?.name ?? `Игрок ${seat}`
+  const nameOf = (seat: number) => nameOfSeat(seats, seat)
   return (
     <div className={styles.finishBanner} role="status">
       <h3>Партия окончена</h3>

@@ -18,28 +18,13 @@ func TestHTTPCreateJoinConnect(t *testing.T) {
 	defer srv.Close()
 
 	// create room
-	resp, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	var created struct {
-		Code string `json:"code"`
-	}
-	_ = json.NewDecoder(resp.Body).Decode(&created)
-	resp.Body.Close()
-	if created.Code == "" {
-		t.Fatal("create must return a code")
-	}
-	hostCookie := findCookie(resp.Cookies(), cookieName(created.Code))
-	if hostCookie == nil {
-		t.Fatal("create must Set-Cookie the host token")
-	}
+	code, hostCookie := createRoomHTTP(t, srv)
 	if !hostCookie.HttpOnly {
 		t.Fatal("token cookie must be HttpOnly (L2-6)")
 	}
 
 	// join room → seat + cookie
-	jresp, err := http.Post(srv.URL+"/api/rooms/"+created.Code+"/join", "application/json", strings.NewReader(`{"name":"Bob"}`))
+	jresp, err := http.Post(srv.URL+"/api/rooms/"+code+"/join", "application/json", strings.NewReader(`{"name":"Bob"}`))
 	if err != nil {
 		t.Fatalf("join: %v", err)
 	}
@@ -51,12 +36,12 @@ func TestHTTPCreateJoinConnect(t *testing.T) {
 	if joined.Seat != 1 {
 		t.Fatalf("Bob must be seat 1, got %d", joined.Seat)
 	}
-	bobCookie := findCookie(jresp.Cookies(), cookieName(created.Code))
+	bobCookie := findCookie(jresp.Cookies(), cookieName(code))
 	if bobCookie == nil {
 		t.Fatal("join must Set-Cookie the seat token")
 	}
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/" + created.Code
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/" + code
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -106,26 +91,18 @@ func TestJoinErrorsAreJSON(t *testing.T) {
 		t.Fatalf("unknown room: %d/%q, want 404/roomNotFound", st, code)
 	}
 
-	resp, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	var created struct {
-		Code string `json:"code"`
-	}
-	_ = json.NewDecoder(resp.Body).Decode(&created)
-	resp.Body.Close()
+	roomCode, _ := createRoomHTTP(t, srv)
 
 	// Fill the table to game.maxPlayers (8, see game/session.go: ErrFull "max 8, D-3").
 	// The host already holds seat 0, so 7 more joins fill it exactly.
 	for i := 0; i < 7; i++ {
-		if st, code := joinCode(created.Code, "P"); st != http.StatusOK {
+		if st, code := joinCode(roomCode, "P"); st != http.StatusOK {
 			t.Fatalf("filler join %d: %d/%q, want 200", i, st, code)
 		}
 	}
 
 	// table is now full (8/8) → the next join is rejected with 409 full
-	if st, code := joinCode(created.Code, "Overflow"); st != http.StatusConflict || code != "full" {
+	if st, code := joinCode(roomCode, "Overflow"); st != http.StatusConflict || code != "full" {
 		t.Fatalf("join over capacity: %d/%q, want 409/full", st, code)
 	}
 
@@ -134,6 +111,30 @@ func TestJoinErrorsAreJSON(t *testing.T) {
 	// ErrDuplicate keys off PlayerID, not the display name — so two HTTP joins with
 	// the same name never collide at this layer. ErrDuplicate is real (used e.g. on
 	// reconnect paths that reuse a PlayerID) but unreachable from this handler.
+}
+
+// createRoomHTTP walks the create step over real HTTP and returns the room code with
+// the host's reconnect cookie. Every handler test starts this way; keeping the request
+// shape in one place means a change to POST /api/rooms is a one-line fix, not five.
+func createRoomHTTP(t *testing.T, srv *httptest.Server) (string, *http.Cookie) {
+	t.Helper()
+	resp, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	defer resp.Body.Close()
+	var created struct {
+		Code string `json:"code"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	if created.Code == "" {
+		t.Fatal("create must return a code")
+	}
+	ck := findCookie(resp.Cookies(), cookieName(created.Code))
+	if ck == nil {
+		t.Fatal("create must Set-Cookie the host token")
+	}
+	return created.Code, ck
 }
 
 func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
@@ -150,22 +151,7 @@ func TestRoutesAndCookieScope(t *testing.T) {
 	srv := httptest.NewServer(NewServer(h, Options{}).Handler())
 	defer srv.Close()
 
-	resp, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	defer resp.Body.Close()
-	var created struct {
-		Code string `json:"code"`
-	}
-	_ = json.NewDecoder(resp.Body).Decode(&created)
-	if created.Code == "" {
-		t.Fatal("create must return a code")
-	}
-	ck := findCookie(resp.Cookies(), cookieName(created.Code))
-	if ck == nil {
-		t.Fatal("create must Set-Cookie")
-	}
+	_, ck := createRoomHTTP(t, srv)
 	// Кука обязана уходить и на /api/..., и на /ws/... — значит Path=/ (§7.4).
 	if ck.Path != "/" {
 		t.Fatalf("cookie Path = %q, want \"/\"", ck.Path)
@@ -180,16 +166,7 @@ func TestProbeMe(t *testing.T) {
 	srv := httptest.NewServer(NewServer(h, Options{}).Handler())
 	defer srv.Close()
 
-	resp, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	var created struct {
-		Code string `json:"code"`
-	}
-	_ = json.NewDecoder(resp.Body).Decode(&created)
-	resp.Body.Close()
-	ck := findCookie(resp.Cookies(), cookieName(created.Code))
+	roomCode, ck := createRoomHTTP(t, srv)
 
 	probe := func(code string, cookie *http.Cookie) (int, string) {
 		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/rooms/"+code+"/me", nil)
@@ -212,10 +189,10 @@ func TestProbeMe(t *testing.T) {
 		return r.StatusCode, body.Error
 	}
 
-	if st, what := probe(created.Code, ck); st != http.StatusOK || what != "seat" {
+	if st, what := probe(roomCode, ck); st != http.StatusOK || what != "seat" {
 		t.Fatalf("with cookie: %d/%s, want 200/seat", st, what)
 	}
-	if st, what := probe(created.Code, nil); st != http.StatusUnauthorized || what != "seatNotFound" {
+	if st, what := probe(roomCode, nil); st != http.StatusUnauthorized || what != "seatNotFound" {
 		t.Fatalf("without cookie: %d/%s, want 401/seatNotFound", st, what)
 	}
 	if st, what := probe("ZZZZ", ck); st != http.StatusNotFound || what != "roomNotFound" {
@@ -274,19 +251,7 @@ func TestCrossSiteCookieMode(t *testing.T) {
 	srv := httptest.NewServer(NewServer(h, Options{CrossSite: true}).Handler())
 	defer srv.Close()
 
-	resp, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	defer resp.Body.Close()
-	var created struct {
-		Code string `json:"code"`
-	}
-	_ = json.NewDecoder(resp.Body).Decode(&created)
-	ck := findCookie(resp.Cookies(), cookieName(created.Code))
-	if ck == nil {
-		t.Fatal("create must Set-Cookie")
-	}
+	_, ck := createRoomHTTP(t, srv)
 	if ck.SameSite != http.SameSiteNoneMode || !ck.Secure {
 		t.Fatalf("cross-site cookie must be None+Secure, got SameSite=%v Secure=%v", ck.SameSite, ck.Secure)
 	}

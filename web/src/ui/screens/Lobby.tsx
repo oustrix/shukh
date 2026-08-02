@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useGame } from '../../store/GameProvider'
 import { selectHost, selectSeats, selectSnapshot, selectYou } from '../../store/game'
 import type { RoomConfig } from '../../net/rooms'
+import { useDispatch } from '../useDispatch'
 import { Button } from '../kit/Button'
 import styles from './Screens.module.css'
 
@@ -16,7 +17,9 @@ export function Lobby() {
   const seats = useGame(selectSeats)
   const you = useGame(selectYou)
   const host = useGame(selectHost)
-  const command = useGame((s) => s.command)
+  // Тот же общий шов отправки, что и у стола: в обрыве команда не уезжает молча,
+  // а игрок получает уведомление (§8/W3-5).
+  const { online, command } = useDispatch()
   const isHost = you !== null && you === host
   const [config, setConfig] = useState<RoomConfig>({ deckSize: 36, mode: 'middle' })
 
@@ -63,7 +66,7 @@ export function Lobby() {
               <option value="middle">Середина</option>
             </select>
           </label>
-          <Button onClick={() => command({ type: 'start' })} disabled={seats.length < 2}>
+          <Button onClick={() => command({ type: 'start' })} disabled={!online || seats.length < 2}>
             Начать
           </Button>
         </>

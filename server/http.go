@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/url"
 	"slices"
@@ -132,9 +131,8 @@ func (s *Server) createRoom(w http.ResponseWriter, req *http.Request) {
 
 func (s *Server) joinRoom(w http.ResponseWriter, req *http.Request) {
 	code := req.PathValue("code")
-	room, ok := s.hub.Room(code)
+	room, ok := s.resolveRoom(w, code)
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "roomNotFound"})
 		return
 	}
 	var body struct {
@@ -146,7 +144,10 @@ func (s *Server) joinRoom(w http.ResponseWriter, req *http.Request) {
 	}
 	tok, err := room.Join(body.Name)
 	if err != nil {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": joinErrorCode(err)})
+		// codeFor is the single mapping of game sentinels to protocol codes (§10);
+		// Session.Join realistically fails only with ErrFull/ErrDuplicate, both of
+		// which it already covers.
+		writeJSON(w, http.StatusConflict, map[string]string{"error": codeFor(err)})
 		return
 	}
 	pid, _ := room.playerFor(tok)
@@ -159,19 +160,12 @@ func (s *Server) joinRoom(w http.ResponseWriter, req *http.Request) {
 // dead server without this probe; it also drives the invite-link flow (§7.7).
 func (s *Server) me(w http.ResponseWriter, req *http.Request) {
 	code := req.PathValue("code")
-	room, ok := s.hub.Room(code)
+	room, ok := s.resolveRoom(w, code)
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "roomNotFound"})
 		return
 	}
-	ck, err := req.Cookie(cookieName(code))
-	if err != nil {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "seatNotFound"})
-		return
-	}
-	pid, ok := room.playerFor(Token(ck.Value))
+	pid, ok := s.resolvePlayer(w, req, code, room)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "seatNotFound"})
 		return
 	}
 	seat := room.seatOf(pid)
@@ -185,19 +179,12 @@ func (s *Server) me(w http.ResponseWriter, req *http.Request) {
 
 func (s *Server) connect(w http.ResponseWriter, req *http.Request) {
 	code := req.PathValue("code")
-	room, ok := s.hub.Room(code)
+	room, ok := s.resolveRoom(w, code)
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "roomNotFound"})
 		return
 	}
-	ck, err := req.Cookie(cookieName(code))
-	if err != nil {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "seatNotFound"})
-		return
-	}
-	pid, ok := room.playerFor(Token(ck.Value))
+	pid, ok := s.resolvePlayer(w, req, code, room)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "seatNotFound"})
 		return
 	}
 	c, err := websocket.Accept(w, req, &websocket.AcceptOptions{OriginPatterns: s.originPatterns()})
@@ -208,19 +195,34 @@ func (s *Server) connect(w http.ResponseWriter, req *http.Request) {
 	room.serveConn(req.Context(), c, pid)
 }
 
-// joinErrorCode maps a Room.Join failure to a protocol error code (§10). It only
-// distinguishes the two reasons Session.Join actually rejects a name (table full,
-// duplicate identity); anything else collapses to "unknown" rather than leaking an
-// internal error string to the client.
-func joinErrorCode(err error) string {
-	switch {
-	case errors.Is(err, game.ErrFull):
-		return "full"
-	case errors.Is(err, game.ErrDuplicate):
-		return "duplicate"
-	default:
-		return "unknown"
+// resolveRoom looks a room up by code, answering roomNotFound itself when there is
+// none. Shared by every handler that takes a {code}: the reply for a missing room is
+// a protocol decision (§10), and it must not drift between HTTP and WS entry points.
+func (s *Server) resolveRoom(w http.ResponseWriter, code string) (*Room, bool) {
+	room, ok := s.hub.Room(code)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "roomNotFound"})
+		return nil, false
 	}
+	return room, true
+}
+
+// resolvePlayer maps the room cookie to its PlayerID, answering seatNotFound itself.
+// A missing cookie and an unknown token are deliberately indistinguishable to the
+// caller: both mean "you hold no seat here", and saying which would leak whether a
+// token exists.
+func (s *Server) resolvePlayer(w http.ResponseWriter, req *http.Request, code string, room *Room) (game.PlayerID, bool) {
+	ck, err := req.Cookie(cookieName(code))
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "seatNotFound"})
+		return "", false
+	}
+	pid, ok := room.playerFor(Token(ck.Value))
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "seatNotFound"})
+		return "", false
+	}
+	return pid, true
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

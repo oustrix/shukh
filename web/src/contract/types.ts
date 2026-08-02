@@ -75,6 +75,13 @@ export interface SeatMeta {
   seat: SeatID
   name: string
 }
+
+// Имя места для показа. Запасной вариант нужен всерьёз: ростер и вид приходят разными
+// полями апдейта, и в пограничные моменты (место освободилось) вид может ссылаться на
+// место, которого в ростере уже нет.
+export function nameOfSeat(seats: SeatMeta[], seat: SeatID): string {
+  return seats.find((s) => s.seat === seat)?.name ?? `Игрок ${seat}`
+}
 export interface GameSnapshot {
   roomCode: string
   you: SeatID // своё место известно и в лобби, где view === null

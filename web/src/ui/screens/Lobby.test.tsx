@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Lobby } from './Lobby'
 import { useGame } from '../../store/GameProvider'
+import { NoticeArea } from '../kit/Notice'
 import type { GameState } from '../../store/game'
 
 // Лобби читает стор только через useGame — подменяем его, чтобы не поднимать сокет.
@@ -87,5 +88,35 @@ describe('лобби', () => {
     render(<Lobby />)
     await userEvent.selectOptions(screen.getByLabelText('Колода'), '52')
     expect(command).toHaveBeenCalledWith({ type: 'setConfig', config: { deckSize: 52, mode: 'middle' } })
+  })
+
+  // Раньше блокировка с уведомлением жила локально в столе, и лобби её не унаследовало:
+  // хост жал «Начать» в обрыве и не получал вообще ничего. Теперь механизм общий (§8/W3-5).
+  it('в обрыве связи «Начать» заблокирована, а клик по настройке уведомляет', async () => {
+    const command = mockGame({
+      conn: 'reconnecting',
+      snapshot: {
+        roomCode: 'ABCD',
+        you: 0,
+        stage: 'lobby',
+        host: 0,
+        seats: [
+          { seat: 0, name: 'Вера' },
+          { seat: 1, name: 'Боря' },
+        ],
+        view: null,
+        legal: [],
+      },
+    })
+    render(
+      <NoticeArea>
+        <Lobby />
+      </NoticeArea>,
+    )
+    expect(screen.getByRole('button', { name: /Начать/i })).toBeDisabled()
+
+    await userEvent.selectOptions(screen.getByLabelText('Колода'), '52')
+    expect(command).not.toHaveBeenCalled()
+    expect(await screen.findByTestId('notice')).toHaveTextContent(/Связь потеряна/i)
   })
 })
