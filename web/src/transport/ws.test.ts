@@ -199,4 +199,30 @@ describe('transport/ws', () => {
     expect(statuses.at(-1)?.state).toBe('reconnecting')
     expect(pending).toHaveLength(0)
   })
+
+  it('упавшая проба не вешает реконнект: попытки продолжаются (§8, бэкофф бесконечен)', async () => {
+    // me() делает голый fetch — оффлайн/DNS/лежащий сервер РЕДЖЕКТЯТ промис.
+    // Без обработки реджекта retryLater() не вызывался бы никогда, и транспорт
+    // навсегда застревал в reconnecting, продолжая обещать баннером переподключение.
+    FakeSocket.last = null
+    FakeSocket.created = 0
+    const pending: (() => void)[] = []
+    const statuses: ConnStatus[] = []
+    const transport = createWsTransport('ABCD', {
+      socketFactory: (url) => new FakeSocket(url),
+      schedule: (fn) => {
+        pending.push(fn)
+        return () => {}
+      },
+      probe: () => Promise.reject(new Error('offline')),
+    })
+    transport.subscribe({ onSnapshot: () => {}, onEvent: () => {}, onStatus: (s) => statuses.push(s) })
+    FakeSocket.last!.drop() // сокет не открылся → диагностика пробой
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(statuses.at(-1)?.state).toBe('reconnecting')
+    expect(pending).toHaveLength(1) // попытка запланирована, а не потеряна
+    pending.splice(0).forEach((fn) => fn())
+    expect(FakeSocket.created).toBe(2)
+  })
 })

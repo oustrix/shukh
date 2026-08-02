@@ -78,14 +78,26 @@ export function createWsTransport(code: string, deps: WsDeps = {}): Transport {
   // Сокет не открылся: браузер не отдаёт статус рукопожатия, поэтому причину узнаём
   // пробой — иначе бесконечный бэкофф в стену на потерянном месте (§7.7).
   function diagnoseFailure() {
-    void probe(code).then((res) => {
-      if (stopped) return
-      if (res.kind === 'seatNotFound' || res.kind === 'roomNotFound') {
-        setStatus('lost', { code: res.kind, message: 'место или комната недоступны' })
-        return
-      }
-      retryLater()
-    })
+    // Второй аргумент then, а не .catch: реджект пробы (оффлайн, DNS, сервер лежит —
+    // fetch внутри me() падает, а не возвращает ответ) — это ровно тот случай, ради
+    // которого закладывался бесконечный бэкофф. Без его обработки retryLater() не
+    // вызывался бы никогда, и транспорт навсегда застревал бы в reconnecting, пока
+    // баннер продолжает обещать переподключение. .catch тут был бы хуже: он ловил бы
+    // и исключения из самого обработчика успеха, превращая их в лишнюю попытку.
+    void probe(code).then(
+      (res) => {
+        if (stopped) return
+        if (res.kind === 'seatNotFound' || res.kind === 'roomNotFound') {
+          setStatus('lost', { code: res.kind, message: 'место или комната недоступны' })
+          return
+        }
+        retryLater()
+      },
+      () => {
+        if (stopped) return
+        retryLater()
+      },
+    )
   }
 
   function connect() {

@@ -43,4 +43,14 @@ describe('net/rooms', () => {
     mockFetch(404, { error: 'roomNotFound' })
     await expect(me('ABCD')).resolves.toEqual({ kind: 'roomNotFound' })
   })
+
+  it('me на 5xx НЕ выдаёт seatNotFound — это транзиентный сбой, а не потеря места', async () => {
+    // §7.7 знает ровно три исхода: 200/401/404. Всё прочее (500/502/503, ответ прокси)
+    // обязано вести себя как временный сбой: seatNotFound терминален (conn=lost), и
+    // пятисотка во время реконнекта выкинула бы игрока с живого места посреди grace.
+    for (const status of [500, 502, 503]) {
+      mockFetch(status, {})
+      await expect(me('ABCD')).rejects.toBeInstanceOf(ApiError)
+    }
+  })
 })

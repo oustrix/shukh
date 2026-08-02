@@ -56,12 +56,18 @@ export async function joinRoom(code: string, name: string): Promise<{ seat: numb
 
 // Проба места: браузерный WebSocket не показывает статус неудавшегося рукопожатия,
 // поэтому «нет места» и «сервер лежит» различаем этим запросом (§7.7).
+//
+// Исходов ровно три: 200 {seat}, 401 seatNotFound, 404 roomNotFound. Любой другой
+// статус (500/502/503, страница прокси) — НЕ «место потеряно», а транзиентный сбой,
+// и он обязан реджектиться: seatNotFound терминален (conn=lost, §8), так что
+// пятисотка посреди grace-периода иначе выкинула бы игрока с живого места.
 export async function me(code: string): Promise<MeResult> {
   const resp = await fetch(`${apiOrigin()}/api/rooms/${encodeURIComponent(code)}/me`, {
     credentials: 'include',
   })
   if (resp.status === 404) return { kind: 'roomNotFound' }
-  if (!resp.ok) return { kind: 'seatNotFound' }
+  if (resp.status === 401) return { kind: 'seatNotFound' }
+  if (!resp.ok) throw new ApiError('unknown', 'проба места не удалась')
   const payload = await resp.json().catch(() => ({}))
   return { kind: 'seat', seat: Number((payload as { seat?: unknown }).seat ?? 0) }
 }
