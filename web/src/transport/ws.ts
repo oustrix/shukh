@@ -159,6 +159,18 @@ export function createWsTransport(code: string, deps: WsDeps = {}): Transport {
       seq += 1
       socket.send(JSON.stringify({ type: 'action', action: encodeAction(action), reqId: `a${seq}` }))
     },
+    command(cmd) {
+      if (stopped || status.state !== 'open' || !socket) return
+      seq += 1
+      const reqId = `c${seq}`
+      socket.send(
+        JSON.stringify(
+          cmd.type === 'setConfig'
+            ? { type: 'setConfig', config: cmd.config, reqId }
+            : { type: cmd.type, reqId },
+        ),
+      )
+    },
     close() {
       teardown()
     },

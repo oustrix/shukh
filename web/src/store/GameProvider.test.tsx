@@ -16,6 +16,7 @@ vi.mock('../transport/ws', () => ({
         entry.closed = true
       },
       send: () => {},
+      command: () => {},
       close: () => {
         entry.closed = true
       },

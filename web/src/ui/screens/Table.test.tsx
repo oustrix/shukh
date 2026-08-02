@@ -18,6 +18,7 @@ const store = create<GameState>(() => ({
   conn: 'open',
   lastError: null,
   play: (a: Action) => sent.push(a),
+  command: () => {},
 }))
 
 function renderTable() {

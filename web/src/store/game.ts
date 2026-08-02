@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ConnState, ProtocolError, Transport } from '../contract/transport'
+import type { ConnState, LobbyCommand, ProtocolError, Transport } from '../contract/transport'
 import type { Action, GameEvent, GameSnapshot } from '../contract/types'
 
 export interface GameState {
@@ -8,6 +8,7 @@ export interface GameState {
   conn: ConnState
   lastError: ProtocolError | null
   play: (action: Action) => void
+  command: (cmd: LobbyCommand) => void
 }
 
 // Предел лога событий — событий за партию много; держим только последние.
@@ -36,6 +37,7 @@ export function createGameStore(transport: Transport) {
     conn: 'connecting',
     lastError: null,
     play: (action) => transport.send(action),
+    command: (cmd) => transport.command(cmd),
   }))
   transport.subscribe({
     onSnapshot: (snapshot) => store.setState({ snapshot }),

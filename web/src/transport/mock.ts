@@ -17,6 +17,9 @@ export function createMockTransport(snapshot: GameSnapshot): Transport & { sent:
       sent.push(action)
       console.debug('[mock] send', action)
     },
+    command(cmd) {
+      console.debug('[mock] command', cmd)
+    },
     close() {},
   }
 }

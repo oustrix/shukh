@@ -24,6 +24,7 @@ let gameState: GameState = {
   conn: 'open',
   lastError: null,
   play: () => {},
+  command: () => {},
 }
 
 vi.mock('../../store/GameProvider', async (importOriginal) => {
@@ -36,7 +37,7 @@ vi.mock('../../store/GameProvider', async (importOriginal) => {
 })
 
 function setGameState(over: Partial<GameState>) {
-  gameState = { snapshot: null, events: [], conn: 'open', lastError: null, play: () => {}, ...over }
+  gameState = { snapshot: null, events: [], conn: 'open', lastError: null, play: () => {}, command: () => {}, ...over }
 }
 
 function renderAt(code: string) {

@@ -84,6 +84,8 @@ export function createScriptedTransport(
       emit(step)
       scheduleAutos()
     },
+    // Сценарий не моделирует лобби (Task 13) — команды молча игнорируются.
+    command() {},
     close() {
       onSnapshot = null
       onEvent = null

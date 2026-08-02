@@ -14,6 +14,7 @@ function fakeTransport() {
       }
     },
     send: (a) => sent.push(a),
+    command: () => {},
     close: () => {},
   }
   return {
