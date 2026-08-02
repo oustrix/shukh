@@ -1,0 +1,168 @@
+{
+  "type": "update",
+  "you": 1,
+  "host": 0,
+  "roomCode": "ABCD",
+  "stage": "playing",
+  "roster": [
+    {
+      "name": "Вера",
+      "seat": 0
+    },
+    {
+      "name": "Боря",
+      "seat": 1
+    }
+  ],
+  "view": {
+    "discard": 3,
+    "finish": [],
+    "hand": [
+      {
+        "suit": "♥",
+        "rank": 6
+      },
+      {
+        "suit": "♠",
+        "rank": 14
+      }
+    ],
+    "live": {
+      "0": true,
+      "1": true
+    },
+    "mode": "middle",
+    "opponents": [
+      {
+        "handCount": 5,
+        "live": true,
+        "seat": 0,
+        "shukhPending": 0
+      }
+    ],
+    "phase": "playing",
+    "rules": {
+      "deckSize": 36,
+      "jokers": false,
+      "podkladkaSnizu": false
+    },
+    "shukhPending": 1,
+    "table": [
+      {
+        "by": 0,
+        "card": {
+          "suit": "♣",
+          "rank": 7
+        }
+      }
+    ],
+    "talon": 18,
+    "turn": 1,
+    "you": 1
+  },
+  "events": [
+    {
+      "turn": 0,
+      "type": "gameStarted"
+    },
+    {
+      "card": {
+        "suit": "♣",
+        "rank": 7
+      },
+      "seat": 0,
+      "type": "cardPlayed"
+    },
+    {
+      "by": 0,
+      "type": "conClosed"
+    },
+    {
+      "cards": [
+        {
+          "suit": "♣",
+          "rank": 7
+        }
+      ],
+      "type": "conSwept"
+    },
+    {
+      "place": 1,
+      "seat": 0,
+      "type": "playerFinished"
+    },
+    {
+      "finish": [
+        0,
+        1
+      ],
+      "type": "gameFinished"
+    },
+    {
+      "cards": [
+        {
+          "suit": "♣",
+          "rank": 7
+        }
+      ],
+      "seat": 1,
+      "type": "cardsTaken"
+    },
+    {
+      "eater": 0,
+      "seat": 1,
+      "type": "podkladkaPlayed"
+    },
+    {
+      "seat": 1,
+      "type": "turnSkipped"
+    },
+    {
+      "code": 11,
+      "offender": 1,
+      "type": "shukhAssessed"
+    },
+    {
+      "seat": 1,
+      "type": "actionReverted"
+    },
+    {
+      "card": {
+        "suit": "♣",
+        "rank": 7
+      },
+      "from": 0,
+      "offender": 1,
+      "type": "shukhPaid"
+    },
+    {
+      "cards": [
+        {
+          "suit": "♣",
+          "rank": 7
+        }
+      ],
+      "seat": 1,
+      "type": "shukhCardsTaken"
+    },
+    {
+      "seat": 1,
+      "type": "oneCardDeclared"
+    },
+    {
+      "seat": 1,
+      "type": "westDiscarded"
+    },
+    {
+      "claimant": 0,
+      "code": 6,
+      "target": 1,
+      "type": "voteOpened"
+    },
+    {
+      "code": 8,
+      "overturned": true,
+      "type": "voteResolved"
+    }
+  ]
+}

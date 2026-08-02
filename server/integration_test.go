@@ -82,7 +82,7 @@ func hasEvent(m map[string]any, typ string) bool {
 func TestIntegrationVoteTimeoutAndReconnect(t *testing.T) {
 	clock := newFakeClock(time.Unix(1_000, 0)) // deterministic Now → deterministic start seed
 	h := NewHub(NewMemStore(), clock)
-	srv := httptest.NewServer(NewServer(h).Handler())
+	srv := httptest.NewServer(NewServer(h, Options{}).Handler())
 	defer srv.Close()
 	base := srv.URL
 	wsBase := "ws" + strings.TrimPrefix(base, "http")
@@ -91,7 +91,7 @@ func TestIntegrationVoteTimeoutAndReconnect(t *testing.T) {
 	defer cancel()
 
 	// create + join over HTTP (cookies mint identity)
-	cResp, _ := http.Post(base+"/r", "application/json", strings.NewReader(`{"name":"Host"}`))
+	cResp, _ := http.Post(base+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
 	var created struct {
 		Code string `json:"code"`
 	}
@@ -100,11 +100,11 @@ func TestIntegrationVoteTimeoutAndReconnect(t *testing.T) {
 	code := created.Code
 	hostCookie := findCookie(cResp.Cookies(), cookieName(code))
 
-	jResp, _ := http.Post(base+"/r/"+code+"/join", "application/json", strings.NewReader(`{"name":"Bob"}`))
+	jResp, _ := http.Post(base+"/api/rooms/"+code+"/join", "application/json", strings.NewReader(`{"name":"Bob"}`))
 	jResp.Body.Close()
 	bobCookie := findCookie(jResp.Cookies(), cookieName(code))
 
-	wsURL := wsBase + "/r/" + code
+	wsURL := wsBase + "/ws/" + code
 	host := dialClient(t, ctx, wsURL, hostCookie)
 	defer host.c.CloseNow()
 	bob := dialClient(t, ctx, wsURL, bobCookie)

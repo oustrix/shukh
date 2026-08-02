@@ -14,7 +14,11 @@ type SeatMeta struct {
 // engine events produced by the change that triggered this Update (empty for a
 // plain Snapshot).
 type Update struct {
-	Stage  Lifecycle
+	Stage Lifecycle
+	// Host is the seat currently holding the host role (Lobby-only powers: SetConfig/
+	// Start). Exposed so the client knows whether to offer them — including after a
+	// host migration (L2-3), which the leaving client cannot observe otherwise.
+	Host   engine.SeatID
 	Roster []SeatMeta
 	View   *engine.SeatView
 	Legal  []engine.Action
@@ -35,8 +39,10 @@ func (s *Session) roster() []SeatMeta {
 // across every Update of one change, so the caller builds it once (see fanout).
 func (s *Session) project(id PlayerID, roster []SeatMeta, events []engine.Event) Update {
 	seat, _ := s.seatOf(id)
+	hostSeat, _ := s.seatOf(s.host)
 	up := Update{
 		Stage:  s.stage,
+		Host:   hostSeat,
 		Roster: roster,
 		Events: events,
 	}

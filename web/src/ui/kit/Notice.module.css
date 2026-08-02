@@ -1,0 +1,38 @@
+/* Уведомление не модальное и не забирает фокус: игра под ним продолжается, а само
+   оно уходит по таймеру. Внизу по центру — над рукой мешало бы выбирать карты, а
+   вверху уже живёт баннер соединения и баннер исхода разбора. */
+.notice {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 12px;
+  z-index: 11;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.body {
+  max-width: min(90vw, 420px);
+  padding: 0.6rem 1.1rem;
+  text-align: center;
+  color: var(--warn-fg, #fff);
+  background: var(--warn-bg, #6b4b16);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  animation: noticeAppear 0.18s ease-out;
+}
+@keyframes noticeAppear {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .body {
+    animation: none;
+  }
+}

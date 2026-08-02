@@ -1,0 +1,17 @@
+{
+  "type": "update",
+  "you": 1,
+  "host": 0,
+  "roomCode": "ABCD",
+  "stage": "lobby",
+  "roster": [
+    {
+      "name": "Вера",
+      "seat": 0
+    },
+    {
+      "name": "Боря",
+      "seat": 1
+    }
+  ]
+}

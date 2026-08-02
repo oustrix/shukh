@@ -1,97 +1,72 @@
-import { vi } from 'vitest'
-import { createGameStore, selectLegal, EVENTS_CAP } from './game'
-import { createScriptedTransport } from '../transport/scripted'
-import type { Transport } from '../contract/transport'
-import type { GameEvent, GameSnapshot } from '../contract/types'
-import { gameSnapshot } from '../fixtures/game'
+import { createGameStore, EVENTS_CAP } from './game'
+import type { Transport, TransportHandlers } from '../contract/transport'
+import type { Action, GameEvent, GameSnapshot } from '../contract/types'
 
+// Инлайновый двойник транспорта: отдельного файла-двойника больше нет (W3-7).
 function fakeTransport() {
-  let onSnap: ((s: GameSnapshot) => void) | undefined
-  let onEv: ((e: GameEvent) => void) | undefined
-  const send = vi.fn()
+  let handlers: TransportHandlers | null = null
+  const sent: Action[] = []
   const transport: Transport = {
-    subscribe(s, e) {
-      onSnap = s
-      onEv = e
-      return () => {}
+    subscribe(h) {
+      handlers = h
+      return () => {
+        handlers = null
+      }
     },
-    send,
+    send: (a) => sent.push(a),
+    command: () => {},
+    close: () => {},
   }
   return {
     transport,
-    send,
-    emitSnapshot: (s: GameSnapshot) => onSnap!(s),
-    emitEvent: (e: GameEvent) => onEv!(e),
+    sent,
+    push: (s: GameSnapshot) => handlers?.onSnapshot(s),
+    event: (e: GameEvent) => handlers?.onEvent(e),
+    status: (s: Parameters<TransportHandlers['onStatus']>[0]) => handlers?.onStatus(s),
   }
 }
 
-test('стор стартует пустым и принимает снапшот из транспорта', () => {
-  const f = fakeTransport()
-  const store = createGameStore(f.transport)
-  expect(store.getState().snapshot).toBeNull()
-  f.emitSnapshot(gameSnapshot)
-  expect(store.getState().snapshot).toBe(gameSnapshot)
-})
+const snap: GameSnapshot = {
+  roomCode: 'ABCD',
+  you: 1,
+  stage: 'lobby',
+  host: 0,
+  seats: [{ seat: 0, name: 'Вера' }],
+  view: null,
+  legal: [],
+}
 
-test('play пробрасывает действие в transport.send', () => {
-  const f = fakeTransport()
-  const store = createGameStore(f.transport)
-  store.getState().play({ type: 'takeBottomAndPass' })
-  expect(f.send).toHaveBeenCalledWith({ type: 'takeBottomAndPass' })
-})
+describe('store/game', () => {
+  it('снапшот из транспорта попадает в стор', () => {
+    const f = fakeTransport()
+    const store = createGameStore(f.transport)
+    f.push(snap)
+    expect(store.getState().snapshot?.roomCode).toBe('ABCD')
+  })
 
-test('события копятся в events', () => {
-  const f = fakeTransport()
-  const store = createGameStore(f.transport)
-  f.emitEvent({ type: 'cardPlayed', seat: 0, card: { suit: '♦', rank: 9 } })
-  expect(store.getState().events).toHaveLength(1)
-})
+  it('буфер событий хранит ПОСЛЕДНИЕ EVENTS_CAP', () => {
+    const f = fakeTransport()
+    const store = createGameStore(f.transport)
+    for (let i = 0; i < EVENTS_CAP + 5; i += 1) f.event({ type: 'turnSkipped', seat: i })
+    const events = store.getState().events
+    expect(events).toHaveLength(EVENTS_CAP)
+    expect(events[events.length - 1]).toEqual({ type: 'turnSkipped', seat: EVENTS_CAP + 4 })
+  })
 
-test('selectLegal возвращает snapshot.legal', () => {
-  const f = fakeTransport()
-  const store = createGameStore(f.transport)
-  f.emitSnapshot({ ...gameSnapshot }) // gameSnapshot теперь несёт legal
-  expect(selectLegal(store.getState())).toEqual(gameSnapshot.legal)
-})
+  it('статус соединения и последняя ошибка видны в сторе', () => {
+    const f = fakeTransport()
+    const store = createGameStore(f.transport)
+    f.status({ state: 'reconnecting' })
+    expect(store.getState().conn).toBe('reconnecting')
+    f.status({ state: 'open', error: { code: 'notYours', message: 'не твой ход' } })
+    expect(store.getState().conn).toBe('open')
+    expect(store.getState().lastError).toEqual({ code: 'notYours', message: 'не твой ход' })
+  })
 
-test('events ограничены EVENTS_CAP (кольцевой буфер)', () => {
-  const f = fakeTransport()
-  const store = createGameStore(f.transport)
-  for (let i = 0; i < EVENTS_CAP + 25; i++) {
-    f.emitEvent({ type: 'cardPlayed', seat: 0, card: { suit: '♦', rank: 9 } })
-  }
-  expect(store.getState().events).toHaveLength(EVENTS_CAP)
-})
-
-test('events keep-last: буфер хранит ПОСЛЕДНИЕ события, не первые', () => {
-  const f = fakeTransport()
-  const store = createGameStore(f.transport)
-  const N = EVENTS_CAP + 5
-  for (let i = 0; i < N; i++) {
-    f.emitEvent({ type: 'cardPlayed', seat: 0, card: { suit: '♦', rank: i } })
-  }
-  const evs = store.getState().events as Extract<GameEvent, { type: 'cardPlayed' }>[]
-  expect(evs).toHaveLength(EVENTS_CAP)
-  expect(evs[EVENTS_CAP - 1].card.rank).toBe(N - 1) // самое свежее — последнее
-  expect(evs[0].card.rank).toBe(N - EVENTS_CAP) // первые 5 вытеснены
-})
-
-test('стор проходит сценарий: play продвигает снапшот (синхронный планировщик)', () => {
-  const store = createGameStore(
-    createScriptedTransport(
-      [
-        { kind: 'auto', events: [], snapshot: { ...gameSnapshot } },
-        {
-          kind: 'await',
-          expect: { type: 'takeBottomAndPass' },
-          events: [{ type: 'cardsTaken', seat: 0, cards: [] }],
-          snapshot: { ...gameSnapshot, roomCode: 'AFTER' },
-        },
-      ],
-      (fn) => fn(),
-    ),
-  )
-  expect(store.getState().snapshot?.roomCode).toBe('DEMO')
-  store.getState().play({ type: 'takeBottomAndPass' })
-  expect(store.getState().snapshot?.roomCode).toBe('AFTER')
+  it('play уходит в транспорт', () => {
+    const f = fakeTransport()
+    const store = createGameStore(f.transport)
+    store.getState().play({ type: 'takeBottomAndPass' })
+    expect(f.sent).toEqual([{ type: 'takeBottomAndPass' }])
+  })
 })

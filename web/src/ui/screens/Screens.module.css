@@ -12,8 +12,37 @@
   font: inherit;
   min-width: 220px;
 }
+/* Код комнаты диктуют голосом и переписывают вручную — моноширинный шрифт с
+   разрядкой, чтобы 0/O и 1/I не путались. */
+.code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.15em;
+}
 .players {
   list-style: none;
   padding: 0;
   text-align: center;
+}
+.connBanner {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 0.5rem 1rem;
+  text-align: center;
+  background: var(--warn-bg, #6b4b16);
+  color: var(--warn-fg, #fff);
+}
+
+.finishBanner {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--surface, #23232b);
+  border-top: 1px solid var(--border, #44444f);
 }

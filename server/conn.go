@@ -38,6 +38,14 @@ func (r *Room) serveConn(ctx context.Context, c *websocket.Conn, pid game.Player
 
 	ch, unsub, err := r.session.Subscribe(pid)
 	if err != nil {
+		// The seat is gone (grace expired in the lobby). The write pump is not running
+		// yet, so write the reason inline: closing silently leaves the browser unable to
+		// tell "seat lost" from "server down", and it would retry forever (§7.2).
+		if data, mErr := json.Marshal(errorMsg("", "seatNotFound", err.Error())); mErr == nil {
+			wctx, wcancel := context.WithTimeout(ctx, writeTimeout)
+			_ = c.Write(wctx, websocket.MessageText, data)
+			wcancel()
+		}
 		return
 	}
 	defer unsub()

@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/oustrix/shukh/engine"
@@ -79,6 +80,26 @@ func TestDecodeClientMsgAction(t *testing.T) {
 	}
 	if _, ok := a.(engine.TakeBottomAndPass); !ok {
 		t.Fatalf("want TakeBottomAndPass, got %T", a)
+	}
+}
+
+func TestEncodeUpdateCarriesHost(t *testing.T) {
+	up := game.Update{Stage: game.Lobby, Host: 2, Roster: []game.SeatMeta{{Seat: 0, Name: "A"}}}
+	msg := encodeUpdate(0, "ABCD", up, nil)
+	if msg.Host == nil {
+		t.Fatal("update must carry host")
+	}
+	if *msg.Host != 2 {
+		t.Fatalf("host = %d, want 2", *msg.Host)
+	}
+	// Место 0 — валидный хост и обязано попасть в JSON (указатель, не omitempty-число).
+	zero := encodeUpdate(0, "ABCD", game.Update{Stage: game.Lobby, Host: 0}, nil)
+	data, err := json.Marshal(zero)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(data), `"host":0`) {
+		t.Fatalf("host 0 must be emitted, got %s", data)
 	}
 }
 

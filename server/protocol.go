@@ -246,6 +246,7 @@ type ServerMsg struct {
 
 	// update
 	You          *int   `json:"you,omitempty"`
+	Host         *int   `json:"host,omitempty"` // pointer: seat 0 is a valid host
 	RoomCode     string `json:"roomCode,omitempty"`
 	Stage        string `json:"stage,omitempty"`
 	Roster       []any  `json:"roster,omitempty"`
@@ -311,9 +312,11 @@ func encodeUpdate(you engine.SeatID, roomCode string, u game.Update, voteDeadlin
 		events[i] = encodeEvent(e)
 	}
 	yi := int(you)
+	hi := int(u.Host)
 	return ServerMsg{
 		Type:         "update",
 		You:          &yi,
+		Host:         &hi,
 		RoomCode:     roomCode,
 		Stage:        encodeStage(u.Stage),
 		Roster:       roster,

@@ -14,32 +14,17 @@ import (
 
 func TestHTTPCreateJoinConnect(t *testing.T) {
 	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
-	srv := httptest.NewServer(NewServer(h).Handler())
+	srv := httptest.NewServer(NewServer(h, Options{}).Handler())
 	defer srv.Close()
 
 	// create room
-	resp, err := http.Post(srv.URL+"/r", "application/json", strings.NewReader(`{"name":"Host"}`))
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	var created struct {
-		Code string `json:"code"`
-	}
-	_ = json.NewDecoder(resp.Body).Decode(&created)
-	resp.Body.Close()
-	if created.Code == "" {
-		t.Fatal("create must return a code")
-	}
-	hostCookie := findCookie(resp.Cookies(), cookieName(created.Code))
-	if hostCookie == nil {
-		t.Fatal("create must Set-Cookie the host token")
-	}
+	code, hostCookie := createRoomHTTP(t, srv)
 	if !hostCookie.HttpOnly {
 		t.Fatal("token cookie must be HttpOnly (L2-6)")
 	}
 
 	// join room → seat + cookie
-	jresp, err := http.Post(srv.URL+"/r/"+created.Code+"/join", "application/json", strings.NewReader(`{"name":"Bob"}`))
+	jresp, err := http.Post(srv.URL+"/api/rooms/"+code+"/join", "application/json", strings.NewReader(`{"name":"Bob"}`))
 	if err != nil {
 		t.Fatalf("join: %v", err)
 	}
@@ -51,12 +36,12 @@ func TestHTTPCreateJoinConnect(t *testing.T) {
 	if joined.Seat != 1 {
 		t.Fatalf("Bob must be seat 1, got %d", joined.Seat)
 	}
-	bobCookie := findCookie(jresp.Cookies(), cookieName(created.Code))
+	bobCookie := findCookie(jresp.Cookies(), cookieName(code))
 	if bobCookie == nil {
 		t.Fatal("join must Set-Cookie the seat token")
 	}
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/r/" + created.Code
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/" + code
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -79,6 +64,79 @@ func TestHTTPCreateJoinConnect(t *testing.T) {
 	}
 }
 
+// TestJoinErrorsAreJSON checks that join failures the client's rooms.ts cares about
+// (§10 error codes) come back as {"error":"<code>"} rather than a plain-text body,
+// so the SPA can show a precise reason instead of falling back to "unknown".
+func TestJoinErrorsAreJSON(t *testing.T) {
+	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
+	srv := httptest.NewServer(NewServer(h, Options{}).Handler())
+	defer srv.Close()
+
+	joinCode := func(code, name string) (int, string) {
+		resp, err := http.Post(srv.URL+"/api/rooms/"+code+"/join", "application/json",
+			strings.NewReader(`{"name":"`+name+`"}`))
+		if err != nil {
+			t.Fatalf("join: %v", err)
+		}
+		defer resp.Body.Close()
+		var body struct {
+			Error string `json:"error"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		return resp.StatusCode, body.Error
+	}
+
+	// unknown room → 404 roomNotFound
+	if st, code := joinCode("ZZZZ", "Anyone"); st != http.StatusNotFound || code != "roomNotFound" {
+		t.Fatalf("unknown room: %d/%q, want 404/roomNotFound", st, code)
+	}
+
+	roomCode, _ := createRoomHTTP(t, srv)
+
+	// Fill the table to game.maxPlayers (8, see game/session.go: ErrFull "max 8, D-3").
+	// The host already holds seat 0, so 7 more joins fill it exactly.
+	for i := 0; i < 7; i++ {
+		if st, code := joinCode(roomCode, "P"); st != http.StatusOK {
+			t.Fatalf("filler join %d: %d/%q, want 200", i, st, code)
+		}
+	}
+
+	// table is now full (8/8) → the next join is rejected with 409 full
+	if st, code := joinCode(roomCode, "Overflow"); st != http.StatusConflict || code != "full" {
+		t.Fatalf("join over capacity: %d/%q, want 409/full", st, code)
+	}
+
+	// NB: a "duplicate name" case is not exercised here. Room.Join mints a fresh,
+	// random game.PlayerID per call (server/room.go newPlayerID) and Session.Join's
+	// ErrDuplicate keys off PlayerID, not the display name — so two HTTP joins with
+	// the same name never collide at this layer. ErrDuplicate is real (used e.g. on
+	// reconnect paths that reuse a PlayerID) but unreachable from this handler.
+}
+
+// createRoomHTTP walks the create step over real HTTP and returns the room code with
+// the host's reconnect cookie. Every handler test starts this way; keeping the request
+// shape in one place means a change to POST /api/rooms is a one-line fix, not five.
+func createRoomHTTP(t *testing.T, srv *httptest.Server) (string, *http.Cookie) {
+	t.Helper()
+	resp, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"name":"Host"}`))
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	defer resp.Body.Close()
+	var created struct {
+		Code string `json:"code"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	if created.Code == "" {
+		t.Fatal("create must return a code")
+	}
+	ck := findCookie(resp.Cookies(), cookieName(created.Code))
+	if ck == nil {
+		t.Fatal("create must Set-Cookie the host token")
+	}
+	return created.Code, ck
+}
+
 func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
 	for _, c := range cookies {
 		if c.Name == name {
@@ -86,4 +144,115 @@ func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
 		}
 	}
 	return nil
+}
+
+func TestRoutesAndCookieScope(t *testing.T) {
+	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
+	srv := httptest.NewServer(NewServer(h, Options{}).Handler())
+	defer srv.Close()
+
+	_, ck := createRoomHTTP(t, srv)
+	// Кука обязана уходить и на /api/..., и на /ws/... — значит Path=/ (§7.4).
+	if ck.Path != "/" {
+		t.Fatalf("cookie Path = %q, want \"/\"", ck.Path)
+	}
+	if ck.SameSite != http.SameSiteLaxMode || ck.Secure {
+		t.Fatalf("default cookie must be Lax and non-Secure, got SameSite=%v Secure=%v", ck.SameSite, ck.Secure)
+	}
+}
+
+func TestProbeMe(t *testing.T) {
+	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
+	srv := httptest.NewServer(NewServer(h, Options{}).Handler())
+	defer srv.Close()
+
+	roomCode, ck := createRoomHTTP(t, srv)
+
+	probe := func(code string, cookie *http.Cookie) (int, string) {
+		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/rooms/"+code+"/me", nil)
+		if cookie != nil {
+			req.AddCookie(cookie)
+		}
+		r, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("probe: %v", err)
+		}
+		defer r.Body.Close()
+		var body struct {
+			Seat  *int   `json:"seat"`
+			Error string `json:"error"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Seat != nil {
+			return r.StatusCode, "seat"
+		}
+		return r.StatusCode, body.Error
+	}
+
+	if st, what := probe(roomCode, ck); st != http.StatusOK || what != "seat" {
+		t.Fatalf("with cookie: %d/%s, want 200/seat", st, what)
+	}
+	if st, what := probe(roomCode, nil); st != http.StatusUnauthorized || what != "seatNotFound" {
+		t.Fatalf("without cookie: %d/%s, want 401/seatNotFound", st, what)
+	}
+	if st, what := probe("ZZZZ", ck); st != http.StatusNotFound || what != "roomNotFound" {
+		t.Fatalf("unknown room: %d/%s, want 404/roomNotFound", st, what)
+	}
+}
+
+func TestCORSAllowlist(t *testing.T) {
+	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
+	srv := httptest.NewServer(NewServer(h, Options{Origins: []string{"http://localhost:5173"}}).Handler())
+	defer srv.Close()
+
+	// preflight от разрешённого origin
+	req, _ := http.NewRequest(http.MethodOptions, srv.URL+"/api/rooms", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("preflight: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("preflight status = %d, want 204", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
+		t.Fatalf("Allow-Origin = %q, want the echoed origin (\"*\" is illegal with credentials)", got)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Fatalf("Allow-Credentials = %q, want true", got)
+	}
+
+	// чужой origin не получает разрешения
+	req2, _ := http.NewRequest(http.MethodOptions, srv.URL+"/api/rooms", nil)
+	req2.Header.Set("Origin", "http://evil.example")
+	req2.Header.Set("Access-Control-Request-Method", "POST")
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatalf("preflight2: %v", err)
+	}
+	resp2.Body.Close()
+	if got := resp2.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("Allow-Origin for foreign origin = %q, want empty", got)
+	}
+	// Vary: Origin обязан стоять и на отказе: ответ зависит от Origin в обе стороны,
+	// и общий кеш иначе переиспользует «без Allow-Origin» для разрешённого origin.
+	if got := resp2.Header.Get("Vary"); !strings.Contains(got, "Origin") {
+		t.Fatalf("Vary for foreign origin = %q, want it to contain Origin", got)
+	}
+	if got := resp.Header.Get("Vary"); !strings.Contains(got, "Origin") {
+		t.Fatalf("Vary for allowed origin = %q, want it to contain Origin", got)
+	}
+}
+
+func TestCrossSiteCookieMode(t *testing.T) {
+	h := NewHub(NewMemStore(), newFakeClock(time.Unix(0, 0)))
+	srv := httptest.NewServer(NewServer(h, Options{CrossSite: true}).Handler())
+	defer srv.Close()
+
+	_, ck := createRoomHTTP(t, srv)
+	if ck.SameSite != http.SameSiteNoneMode || !ck.Secure {
+		t.Fatalf("cross-site cookie must be None+Secure, got SameSite=%v Secure=%v", ck.SameSite, ck.Secure)
+	}
 }

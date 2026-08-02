@@ -1,33 +1,33 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { App } from './App'
+import { me } from './net/rooms'
 
-function renderAt(path: string) {
-  return render(
-    <MemoryRouter initialEntries={[path]}>
-      <App />
-    </MemoryRouter>,
-  )
-}
-
-test('корень показывает экран входа', () => {
-  renderAt('/')
-  expect(screen.getByRole('heading', { name: 'Шух' })).toBeInTheDocument()
-  expect(screen.getByLabelText('Код комнаты')).toBeInTheDocument()
+vi.mock('./net/rooms', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./net/rooms')>()
+  return { ...actual, me: vi.fn(), createRoom: vi.fn(), joinRoom: vi.fn() }
 })
 
-test('лобби показывает игроков комнаты из стора', () => {
-  renderAt('/room/DEMO')
-  const players = screen.getByTestId('players')
-  expect(players).toHaveTextContent('Аня')
-  expect(players).toHaveTextContent('Боря')
-})
+afterEach(() => vi.resetAllMocks())
 
-test('стол рендерит руку и мест соперников из снапшота', () => {
-  renderAt('/room/DEMO/table')
-  // 5 карт руки из фикстуры
-  expect(screen.getAllByTestId('card-face').length).toBeGreaterThanOrEqual(5)
-  expect(screen.getByTestId('action-bar')).toBeInTheDocument()
-  expect(screen.getByTestId('seat-1')).toBeInTheDocument()
-  expect(screen.getByTestId('seat-2')).toBeInTheDocument()
+describe('маршруты', () => {
+  it('корень — экран входа', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { name: 'Шух' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Создать комнату/i })).toBeInTheDocument()
+  })
+
+  it('/r/CODE — экран комнаты, а не 404 роутера', async () => {
+    vi.mocked(me).mockResolvedValue({ kind: 'roomNotFound' })
+    render(
+      <MemoryRouter initialEntries={['/r/ABCD']}>
+        <App />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText(/Комната не найдена/i)).toBeInTheDocument()
+  })
 })

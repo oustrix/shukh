@@ -1,37 +1,36 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { ShukhVoteModal } from './ShukhVoteModal'
-import type { ShukhVote } from '../../contract/types'
+import type { Action, VoteView } from '../../contract/types'
 
-const nameOf = (s: number) => `Игрок ${s}`
+const vote: VoteView = { claimant: 0, target: 1, code: 6, voted: [0] }
+const nameOf = (s: number) => ['Вера', 'Боря', 'Гена'][s] ?? `Игрок ${s}`
 
-const voting: ShukhVote = {
-  claimant: 0,
-  target: 1,
-  code: 11,
-  votes: [{ seat: 2, up: true }],
-  outcome: 'upheld',
-  resolved: false,
-}
+describe('модалка голосования R-8.6', () => {
+  it('показывает предмет разбора и КТО проголосовал, но не КАК (§8.4)', () => {
+    render(<ShukhVoteModal vote={vote} deadline={null} legal={[]} nameOf={nameOf} onVote={vi.fn()} />)
+    expect(screen.getByText(/Боря/)).toBeInTheDocument()
+    expect(screen.getByText(/Ш-6/)).toBeInTheDocument()
+    expect(screen.getByTestId('voted-0')).toHaveTextContent('Вера')
+    expect(screen.queryByText(/за|против/i)).not.toBeInTheDocument()
+  })
 
-test('показывает цель, код и голоса во время голосования', () => {
-  render(<ShukhVoteModal vote={voting} nameOf={nameOf} />)
-  expect(screen.getByTestId('shukh-vote')).toHaveTextContent('Ш-11')
-  expect(screen.getByTestId('shukh-vote')).toHaveTextContent('Игрок 1')
-  expect(screen.getByTestId('vote-2')).toHaveTextContent('за')
-  expect(screen.queryByTestId('vote-outcome')).toBeNull() // ещё не resolved
-})
+  it('кнопки голоса появляются только когда голос легален', async () => {
+    const onVote = vi.fn()
+    const { rerender } = render(
+      <ShukhVoteModal vote={vote} deadline={null} legal={[]} nameOf={nameOf} onVote={onVote} />,
+    )
+    expect(screen.queryByRole('button', { name: /За ШУХ/i })).not.toBeInTheDocument()
 
-test('resolved=upheld показывает исход «подтверждён»', () => {
-  render(<ShukhVoteModal vote={{ ...voting, resolved: true }} nameOf={nameOf} />)
-  expect(screen.getByTestId('vote-outcome')).toHaveTextContent('подтверждён')
-})
-
-test('resolved=overturned показывает Ш-8 предъявившему', () => {
-  render(
-    <ShukhVoteModal
-      vote={{ ...voting, resolved: true, outcome: 'overturned' }}
-      nameOf={nameOf}
-    />,
-  )
-  expect(screen.getByTestId('vote-outcome')).toHaveTextContent('Ш-8')
+    const legal: Action[] = [
+      { type: 'vote', vote: 'forShukh' },
+      { type: 'vote', vote: 'againstShukh' },
+    ]
+    rerender(<ShukhVoteModal vote={vote} deadline={null} legal={legal} nameOf={nameOf} onVote={onVote} />)
+    await userEvent.click(screen.getByRole('button', { name: /Против ШУХа/i }))
+    expect(onVote).toHaveBeenCalledWith('againstShukh')
+  })
+  // Исход разбора (voteResolved) модалка больше не показывает: сервер обнуляет view.vote
+  // тем же апдейтом, что несёт это событие, поэтому проп outcome был недостижим в реальной
+  // игре. Баннер исхода и его тесты — VoteOutcomeBanner.tsx / VoteOutcomeBanner.test.tsx.
 })

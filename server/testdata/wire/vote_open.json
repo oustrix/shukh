@@ -1,0 +1,90 @@
+{
+  "type": "update",
+  "you": 1,
+  "host": 0,
+  "roomCode": "ABCD",
+  "stage": "playing",
+  "roster": [
+    {
+      "name": "Вера",
+      "seat": 0
+    },
+    {
+      "name": "Боря",
+      "seat": 1
+    }
+  ],
+  "view": {
+    "discard": 3,
+    "finish": [],
+    "hand": [
+      {
+        "suit": "♥",
+        "rank": 6
+      },
+      {
+        "suit": "♠",
+        "rank": 14
+      }
+    ],
+    "live": {
+      "0": true,
+      "1": true
+    },
+    "mode": "middle",
+    "opponents": [
+      {
+        "handCount": 5,
+        "live": true,
+        "seat": 0,
+        "shukhPending": 0
+      }
+    ],
+    "phase": "playing",
+    "rules": {
+      "deckSize": 36,
+      "jokers": false,
+      "podkladkaSnizu": false
+    },
+    "shukhPending": 1,
+    "table": [
+      {
+        "by": 0,
+        "card": {
+          "suit": "♣",
+          "rank": 7
+        }
+      }
+    ],
+    "talon": 18,
+    "turn": 1,
+    "vote": {
+      "claimant": 0,
+      "code": 6,
+      "target": 1,
+      "voted": [
+        0
+      ]
+    },
+    "you": 1
+  },
+  "legal": [
+    {
+      "type": "vote",
+      "vote": "againstShukh"
+    },
+    {
+      "type": "vote",
+      "vote": "forShukh"
+    }
+  ],
+  "events": [
+    {
+      "claimant": 0,
+      "code": 6,
+      "target": 1,
+      "type": "voteOpened"
+    }
+  ],
+  "voteDeadline": 1754130000000
+}
