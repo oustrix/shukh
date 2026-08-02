@@ -1,8 +1,6 @@
 import { create } from 'zustand'
 import type { ConnState, ProtocolError, Transport } from '../contract/transport'
 import type { Action, GameEvent, GameSnapshot } from '../contract/types'
-import { createScriptedTransport } from '../transport/scripted'
-import { demoScenario } from '../fixtures/scenario'
 
 export interface GameState {
   snapshot: GameSnapshot | null
@@ -49,10 +47,3 @@ export function createGameStore(transport: Transport) {
 }
 
 export type GameStore = ReturnType<typeof createGameStore>
-
-// ВРЕМЕННО (снести в Task 12): экраны Table/Lobby ещё читают этот модульный синглтон
-// напрямую. «Боевой» стор комнаты теперь создаётся через GameProvider — createGameStore
-// вызывается на каждое подключение отдельно, а не один раз на всё приложение. Синглтон
-// оставлен рядом только чтобы существующие экраны продолжали собираться, пока их не
-// переведут на useGame() (Task 12).
-export const useGameStore = createGameStore(createScriptedTransport(demoScenario))

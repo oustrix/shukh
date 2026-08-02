@@ -2,27 +2,31 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { create } from 'zustand'
 import type { Action, GameSnapshot } from '../../contract/types'
+import type { GameState } from '../../store/game'
+import { GameContext } from '../../store/GameProvider'
+import { Table } from './Table'
+import { buildSeatView } from '../../fixtures/seatView'
 
-// Изолированный стор-даблинг: подменяем useGameStore локальным zustand-стором.
+// Изолированный стор-даблинг: подменяем GameContext локальным zustand-стором.
 // Так тестируем Table без реального транспорта.
 const sent: Action[] = []
 let snapshot: GameSnapshot
 
-vi.mock('../../store/game', async () => {
-  const actual = await vi.importActual<typeof import('../../store/game')>('../../store/game')
-  const store = create<import('../../store/game').GameState>(() => ({
-    snapshot: null,
-    events: [],
-    conn: 'open',
-    lastError: null,
-    play: (a: Action) => sent.push(a),
-  }))
-  return { ...actual, useGameStore: store }
-})
+const store = create<GameState>(() => ({
+  snapshot: null,
+  events: [],
+  conn: 'open',
+  lastError: null,
+  play: (a: Action) => sent.push(a),
+}))
 
-import { useGameStore } from '../../store/game'
-import { Table } from './Table'
-import { buildSeatView } from '../../fixtures/seatView'
+function renderTable() {
+  return render(
+    <GameContext.Provider value={store}>
+      <Table />
+    </GameContext.Provider>,
+  )
+}
 
 const SEATS = [
   { seat: 0, name: 'Аня' },
@@ -40,7 +44,7 @@ function setSnapshot(over: Partial<GameSnapshot>) {
     legal: [],
     ...over,
   }
-  ;(useGameStore as unknown as { setState: (s: Partial<unknown>) => void }).setState({ snapshot })
+  store.setState({ snapshot })
 }
 
 beforeEach(() => {
@@ -55,7 +59,7 @@ test('«ШУХ!» активна и шлёт конкретный claimShukh и�
     }),
     legal: [{ type: 'claimShukh', target: 1, code: 11 }],
   })
-  render(<Table />)
+  renderTable()
   await userEvent.click(screen.getByRole('button', { name: 'ШУХ!' }))
   expect(sent).toContainEqual({ type: 'claimShukh', target: 1, code: 11 })
 })
@@ -65,7 +69,7 @@ test('«Одна карта!» пульсирует при 1 карте на р�
     view: buildSeatView({ hand: [{ suit: '♠', rank: 6 }], live: { 0: true } }),
     legal: [],
   })
-  render(<Table />)
+  renderTable()
   const btn = screen.getByRole('button', { name: 'Одна карта!' })
   expect(btn).toBeEnabled()
   await userEvent.click(btn)

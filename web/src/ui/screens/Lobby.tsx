@@ -1,13 +1,13 @@
-import { useNavigate, useParams } from 'react-router-dom'
-import { useGameStore, selectSeats } from '../../store/game'
-import { tablePath } from '../../routes'
-import { Button } from '../kit/Button'
+import { useParams } from 'react-router-dom'
+import { useGame } from '../../store/GameProvider'
+import { selectSeats } from '../../store/game'
 import styles from './Screens.module.css'
 
+// «Начать» (только у хоста, отправка действия старта) — Task 13: здесь пока только
+// состав комнаты, стадию переключает сервер (W3-1).
 export function Lobby() {
   const { code } = useParams()
-  const seats = useGameStore(selectSeats)
-  const navigate = useNavigate()
+  const seats = useGame(selectSeats)
   return (
     <div className={styles.centered}>
       <h2>Комната {code}</h2>
@@ -16,7 +16,6 @@ export function Lobby() {
           <li key={s.seat}>{s.name}</li>
         ))}
       </ul>
-      <Button onClick={() => navigate(tablePath(code ?? ''))}>Начать</Button>
     </div>
   )
 }

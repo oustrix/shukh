@@ -5,7 +5,9 @@ import { createWsTransport } from '../transport/ws'
 
 // Стор живёт ровно столько, сколько открыта комната: код известен только на маршруте,
 // а транспорт держит сокет, который обязан закрыться при уходе (синглтона больше нет).
-const GameContext = createContext<GameStore | null>(null)
+// Экспортирован ради тестов экранов (Table.test.tsx и т.п.): подставляют двойник
+// стора через <GameContext.Provider>, не поднимая настоящий транспорт.
+export const GameContext = createContext<GameStore | null>(null)
 
 export function GameProvider({ code, children }: { code: string; children: ReactNode }) {
   // Транспорт createWsTransport(code) одноразовый: его close()/teardown необратимо

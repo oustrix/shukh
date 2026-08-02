@@ -6,7 +6,8 @@ import {
   isShukhTakeable,
   claimShukhInLegal,
 } from '../../contract/types'
-import { useGameStore, selectSeats, selectView, selectLegal } from '../../store/game'
+import { useGame } from '../../store/GameProvider'
+import { selectSeats, selectView, selectLegal } from '../../store/game'
 import { Hand } from '../table/Hand'
 import { Con } from '../table/Con'
 import { OpponentSeat } from '../table/OpponentSeat'
@@ -15,10 +16,10 @@ import { ActionBar } from '../table/ActionBar'
 import styles from '../table/Table.module.css'
 
 export function Table() {
-  const view = useGameStore(selectView)
-  const seats = useGameStore(selectSeats)
-  const legal = useGameStore(selectLegal)
-  const play = useGameStore((s) => s.play)
+  const view = useGame(selectView)
+  const seats = useGame(selectSeats)
+  const legal = useGame(selectLegal)
+  const play = useGame((s) => s.play)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [announced, setAnnounced] = useState(false)
   const handLen = view?.hand.length ?? 0
